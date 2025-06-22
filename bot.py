@@ -18,14 +18,6 @@ from dotenv import load_dotenv
 import google.generativeai as genai
 from gradio_client import Client
 
-# حل مشكلة handle_file على Railway
-try:
-    from gradio_client import handle_file
-except ImportError:
-    # Fallback للإصدارات الأقدم أو عندما handle_file غير متوفر
-    def handle_file(file_path):
-        return file_path
-
 # تحميل متغيرات البيئة
 load_dotenv()
 
@@ -35,6 +27,25 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# حل مشكلة handle_file على Railway ومنصات النشر السحابية
+try:
+    from gradio_client import handle_file
+    logger.info("✅ تم استيراد handle_file بنجاح")
+except ImportError:
+    # Fallback للإصدارات الأقدم أو عندما handle_file غير متوفر
+    def handle_file(file_path):
+        """Fallback function when handle_file is not available"""
+        logger.warning("⚠️ استخدام fallback لـ handle_file")
+        return file_path
+    logger.info("⚠️ استخدام fallback لـ handle_file")
+except Exception as e:
+    # حل إضافي للأخطاء غير المتوقعة
+    def handle_file(file_path):
+        """Emergency fallback function"""
+        logger.error(f"❌ خطأ في handle_file: {e}")
+        return file_path
+    logger.error(f"❌ خطأ في استيراد handle_file: {e}")
 
 # الحصول على التوكنات من متغيرات البيئة
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
