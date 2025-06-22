@@ -16,7 +16,15 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from dotenv import load_dotenv
 import google.generativeai as genai
-from gradio_client import Client, handle_file
+from gradio_client import Client
+
+# حل مشكلة handle_file على Railway
+try:
+    from gradio_client import handle_file
+except ImportError:
+    # Fallback للإصدارات الأقدم أو عندما handle_file غير متوفر
+    def handle_file(file_path):
+        return file_path
 
 # تحميل متغيرات البيئة
 load_dotenv()
@@ -130,20 +138,43 @@ async def process_virtual_tryon(person_image, garment_image, model_choice, garme
             garment_image.save(garment_temp.name, format='PNG')
             garment_temp_path = garment_temp.name
         
-        # تشغيل النموذج المناسب
-        if model_choice == "model1":
-            result = client.predict(
-                person_image=handle_file(person_temp_path),
-                clothing_image=handle_file(garment_temp_path),
-                api_name="/swap_clothing"
-            )
-        else:  # model2
-            result = client.predict(
-                person_path=handle_file(person_temp_path),
-                garment_path=handle_file(garment_temp_path),
-                garment_type=garment_type,
-                api_name="/virtual_tryon"
-            )
+        # تشغيل النموذج المناسب مع معالجة أفضل للملفات
+        try:
+            if model_choice == "model1":
+                # استخدام handle_file إذا كان متوفراً، وإلا استخدام المسار مباشرة
+                try:
+                    result = client.predict(
+                        person_image=handle_file(person_temp_path),
+                        clothing_image=handle_file(garment_temp_path),
+                        api_name="/swap_clothing"
+                    )
+                except:
+                    # Fallback: استخدام المسار مباشرة
+                    result = client.predict(
+                        person_image=person_temp_path,
+                        clothing_image=garment_temp_path,
+                        api_name="/swap_clothing"
+                    )
+            else:  # model2
+                try:
+                    result = client.predict(
+                        person_path=handle_file(person_temp_path),
+                        garment_path=handle_file(garment_temp_path),
+                        garment_type=garment_type,
+                        api_name="/virtual_tryon"
+                    )
+                except:
+                    # Fallback: استخدام المسار مباشرة
+                    result = client.predict(
+                        person_path=person_temp_path,
+                        garment_path=garment_temp_path,
+                        garment_type=garment_type,
+                        api_name="/virtual_tryon"
+                    )
+                    
+        except Exception as api_error:
+            logger.error(f"خطأ في استدعاء API: {api_error}")
+            return None, f"❌ خطأ في معالجة الصور: {str(api_error)}"
         
         # تنظيف الملفات المؤقتة
         try:
