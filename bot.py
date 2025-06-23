@@ -141,23 +141,24 @@ class GraffitiAI:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as garment_file:
                 garment_img.save(garment_file.name, format='PNG')
                 garment_path = garment_file.name
-            
-            # تشغيل النموذج المناسب مع إعادة المحاولة
+              # تشغيل النموذج المناسب مع إعادة المحاولة
             model_info = AI_MODELS[model_key]
             result = None
             
             try:
                 if model_key == "g1_fast":
+                    # النموذج الأول: krsatyam7/Virtual_Clothing_Try-On-new
                     result = client.predict(
                         person_image=handle_file(person_path),
                         clothing_image=handle_file(garment_path),
                         api_name=model_info["api_endpoint"]
                     )
                 else:  # g1_pro
+                    # النموذج الثاني: PawanratRung/virtual-try-on
                     result = client.predict(
-                        person_path=handle_file(person_path),
-                        garment_path=handle_file(garment_path),
-                        garment_type=garment_type,
+                        handle_file(person_path),
+                        handle_file(garment_path),
+                        garment_type,
                         api_name=model_info["api_endpoint"]
                     )
             except Exception as api_error:
@@ -165,16 +166,18 @@ class GraffitiAI:
                 # محاولة مع النموذج البديل
                 try:
                     if model_key == "g1_fast":
-                        # جرب النموذج البديل بـ API مختلف
-                        result = client.predict(
-                            person_path=handle_file(person_path),
-                            garment_path=handle_file(garment_path),
-                            garment_type="upper_body",
+                        # جرب النموذج البديل G1 Pro
+                        alt_client = Client("PawanratRung/virtual-try-on")
+                        result = alt_client.predict(
+                            handle_file(person_path),
+                            handle_file(garment_path),
+                            "upper_body",
                             api_name="/virtual_tryon"
                         )
                     else:
-                        # جرب النموذج البديل بـ API مختلف
-                        result = client.predict(
+                        # جرب النموذج البديل G1 Fast
+                        alt_client = Client("krsatyam7/Virtual_Clothing_Try-On-new")
+                        result = alt_client.predict(
                             person_image=handle_file(person_path),
                             clothing_image=handle_file(garment_path),
                             api_name="/swap_clothing"

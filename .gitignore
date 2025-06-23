@@ -1,15 +1,43 @@
-# ملفات البيئة
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# ملفات Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
+
+# Bot specific
+*.tmp
+temp/
+temporary_files/
+logs/
+*.log
+
+# Environments
+.env
+.venv
+env/
+venv/
+
+# Railway
+.railway/
+
+# VS Code
+.vscode/
+
+# JetBrains
+.idea/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
 .Python
 build/
 develop-eggs/
@@ -26,23 +54,3 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
-
-# ملفات النظام
-.DS_Store
-Thumbs.db
-
-# ملفات التحرير
-*.swp
-*.swo
-*~
-
-# ملفات المؤقتة
-*.tmp
-*.temp
-temp/
-tmp/
-
-# سجلات الأخطاء
-*.log
-logs/
