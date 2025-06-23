@@ -121,41 +121,76 @@ async def process_virtual_tryon(person_image, garment_image, model_choice, garme
         
         with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as garment_temp:
             garment_image.save(garment_temp.name, format='PNG')
-            garment_temp_path = garment_temp.name
-        
-        # تشغيل النموذج المناسب مع معالجة أفضل للملفات
+            garment_temp_path = garment_temp.name        # تشغيل النموذج المناسب مع معالجة أفضل للملفات
         try:
             if model_choice == "model1":
-                # استخدام handle_file إذا كان متوفراً، وإلا استخدام المسار مباشرة
+                # النموذج الأول - Kolors - تجربة تنسيقات مختلفة
                 try:
+                    # تجربة 1: معاملات موضعية فقط
                     result = client.predict(
-                        person_image=handle_file(person_temp_path),
-                        clothing_image=handle_file(garment_temp_path),
+                        handle_file(person_temp_path),
+                        handle_file(garment_temp_path),
                         api_name="/swap_clothing"
                     )
-                except:
-                    # Fallback: استخدام المسار مباشرة
-                    result = client.predict(
-                        person_image=person_temp_path,
-                        clothing_image=garment_temp_path,
-                        api_name="/swap_clothing"
-                    )
+                    logger.info("✅ نجح النموذج الأول - معاملات موضعية")
+                except Exception as e1:
+                    logger.warning(f"فشل التجربة الأولى للنموذج الأول: {e1}")
+                    try:
+                        # تجربة 2: بدون handle_file
+                        result = client.predict(
+                            person_temp_path,
+                            garment_temp_path,
+                            api_name="/swap_clothing"
+                        )
+                        logger.info("✅ نجح النموذج الأول - مسارات مباشرة")
+                    except Exception as e2:
+                        logger.warning(f"فشل التجربة الثانية للنموذج الأول: {e2}")
+                        try:
+                            # تجربة 3: استخدام أسماء مختلفة
+                            result = client.predict(
+                                person=handle_file(person_temp_path),
+                                garment=handle_file(garment_temp_path),
+                                api_name="/swap_clothing"
+                            )
+                            logger.info("✅ نجح النموذج الأول - أسماء مختلفة")
+                        except Exception as e3:
+                            logger.error(f"فشل جميع محاولات النموذج الأول: {e3}")
+                            raise e3
             else:  # model2
+                # النموذج الثاني - PawanratRung - تجربة تنسيقات مختلفة
                 try:
+                    # تجربة 1: معاملات موضعية
                     result = client.predict(
-                        person_path=handle_file(person_temp_path),
-                        garment_path=handle_file(garment_temp_path),
-                        garment_type=garment_type,
+                        handle_file(person_temp_path),
+                        handle_file(garment_temp_path),
+                        garment_type,
                         api_name="/virtual_tryon"
                     )
-                except:
-                    # Fallback: استخدام المسار مباشرة
-                    result = client.predict(
-                        person_path=person_temp_path,
-                        garment_path=garment_temp_path,
-                        garment_type=garment_type,
-                        api_name="/virtual_tryon"
-                    )
+                    logger.info("✅ نجح النموذج الثاني - معاملات موضعية")
+                except Exception as e1:
+                    logger.warning(f"فشل التجربة الأولى للنموذج الثاني: {e1}")
+                    try:
+                        # تجربة 2: بدون handle_file
+                        result = client.predict(
+                            person_temp_path,
+                            garment_temp_path,
+                            garment_type,
+                            api_name="/virtual_tryon"
+                        )
+                        logger.info("✅ نجح النموذج الثاني - مسارات مباشرة")
+                    except Exception as e2:
+                        logger.warning(f"فشل التجربة الثانية للنموذج الثاني: {e2}")
+                        try:
+                            # تجربة 3: بدون نوع الملابس
+                            result = client.predict(
+                                handle_file(person_temp_path),
+                                handle_file(garment_temp_path),
+                                api_name="/virtual_tryon"
+                            )
+                            logger.info("✅ نجح النموذج الثاني - بدون نوع الملابس")
+                        except Exception as e3:
+                            logger.error(f"فشل جميع محاولات النموذج الثاني: {e3}")
+                            raise e3
                     
         except Exception as api_error:
             logger.error(f"خطأ في استدعاء API: {api_error}")
