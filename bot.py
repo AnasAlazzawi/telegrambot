@@ -203,7 +203,9 @@ class GraffitiAI:
             return None, f"❌ خطأ: {str(e)}"
 
 class TelegramHandlers:
-    """معالجات رسائل تليجرام"""    @staticmethod
+    """معالجات رسائل تليجرام"""
+    
+    @staticmethod
     async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """أمر البداية"""
         user = update.effective_user
@@ -313,14 +315,15 @@ Graffiti AI هو بوت ذكي متطور يستخدم أحدث تقنيات ا�
             [InlineKeyboardButton("🎨 جرب الآن", callback_data="start_tryon")],
             [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")]
         ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
+        reply_markup = InlineKeyboardMarkup(keyboard)        
         if update.callback_query:
             await update.callback_query.edit_message_text(
                 about_text, parse_mode='HTML', reply_markup=reply_markup
             )
         else:
-            await update.message.reply_html(about_text, reply_markup=reply_markup)    @staticmethod
+            await update.message.reply_html(about_text, reply_markup=reply_markup)
+    
+    @staticmethod
     async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """معالجة ضغطات الأزرار"""
         try:
