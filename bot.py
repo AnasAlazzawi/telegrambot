@@ -229,7 +229,18 @@ class GraffitiAI:
             
             if result:
                 logger.info("✅ تم توليد الصورة بنجاح")
-                return result, "✅ تم توليد الصورة بنجاح!"
+                # إذا كان النتيجة URL، نحتاج إلى تحميل الصورة
+                if isinstance(result, str) and result.startswith('http'):
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(result) as response:
+                            if response.status == 200:
+                                image_data = await response.read()
+                                return BytesIO(image_data), "✅ تم توليد الصورة بنجاح!"
+                            else:
+                                return None, "❌ فشل في تحميل الصورة المولدة"
+                else:
+                    # إذا كان النتيجة ملف مباشر
+                    return result, "✅ تم توليد الصورة بنجاح!"
             else:
                 return None, "❌ لم يتم توليد الصورة"
                 
