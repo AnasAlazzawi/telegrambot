@@ -86,8 +86,8 @@ class GraffitiAI:
         """إنشاء عميل الذكاء الاصطناعي"""
         try:
             model_info = AI_MODELS[model_key]
-            # إضافة timeout وإعدادات محسنة للاتصال
-            client = Client(model_info["client_id"], timeout=120)
+            # إنشاء العميل بدون timeout (غير مدعوم في هذا الإصدار)
+            client = Client(model_info["client_id"])
             logger.info(f"✅ تم الاتصال بنموذج {model_info['name']}")
             return client
         except Exception as e:
@@ -96,12 +96,12 @@ class GraffitiAI:
             try:
                 if model_key == "g1_fast":
                     # جرب النموذج البديل
-                    alt_client = Client("PawanratRung/virtual-try-on", timeout=120)
+                    alt_client = Client("PawanratRung/virtual-try-on")
                     logger.info("✅ تم الاتصال بالنموذج البديل G1 Pro")
                     return alt_client
                 elif model_key == "g1_pro":
                     # جرب النموذج البديل
-                    alt_client = Client("krsatyam7/Virtual_Clothing_Try-On-new", timeout=120)
+                    alt_client = Client("krsatyam7/Virtual_Clothing_Try-On-new")
                     logger.info("✅ تم الاتصال بالنموذج البديل G1 Fast")
                     return alt_client
             except Exception as e2:
