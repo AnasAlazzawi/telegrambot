@@ -15,7 +15,6 @@ from PIL import Image
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from dotenv import load_dotenv
-import google.generativeai as genai
 from gradio_client import Client
 
 # تحميل متغيرات البيئة
@@ -49,17 +48,10 @@ except Exception as e:
 
 # الحصول على التوكنات من متغيرات البيئة
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 # التحقق من وجود التوكنات
 if not TELEGRAM_TOKEN:
     raise ValueError("TELEGRAM_TOKEN غير موجود في ملف .env")
-if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY غير موجود في ملف .env")
-
-# إعداد Gemini AI
-genai.configure(api_key=GEMINI_API_KEY)
-model = None
 
 # حالات المستخدمين للتفاعل مع الملابس
 user_states = {}
@@ -84,24 +76,6 @@ GARMENT_TYPES = {
     "lower": "lower_body", 
     "dress": "dresses"
 }
-
-# اختبار الاتصال بـ Gemini
-def test_gemini_connection():
-    """اختبار الاتصال بـ Gemini AI"""
-    try:
-        test_model = genai.GenerativeModel('gemini-1.5-flash')
-        response = test_model.generate_content("Hello")
-        global model
-        model = test_model
-        logger.info("✅ تم الاتصال بـ Gemini AI بنجاح")
-        return True
-    except Exception as e:
-        logger.warning(f"⚠️ فشل الاتصال بـ Gemini AI: {e}")
-        logger.info("🔄 سيتم استخدام ردود ذكية افتراضية")
-        return False
-
-# اختبار الاتصال عند بدء التشغيل
-gemini_available = test_gemini_connection()
 
 # دوال تجربة الملابس الافتراضية
 async def initialize_virtual_tryon_client(model_choice):
@@ -208,28 +182,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # إعادة تعيين حالة المستخدم
     user_states[user_id] = {}
     
-    # تحديد حالة النظام
-    status_message = "✅ متصل بـ Gemini AI" if gemini_available else "⚠️ يعمل بالردود الذكية الافتراضية"
-    
     # إنشاء لوحة المفاتيح
     keyboard = [
         [InlineKeyboardButton("👕 تجربة الملابس الافتراضية", callback_data="virtual_tryon")],
-        [InlineKeyboardButton("💬 محادثة ذكية", callback_data="chat_mode")],
-        [InlineKeyboardButton("ℹ️ المساعدة", callback_data="help")]    ]
+        [InlineKeyboardButton("ℹ️ المساعدة", callback_data="help")]
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await update.message.reply_html(
         f"🎉 <b>مرحباً {user.mention_html()}!</b> 🤖\n\n"
-        f"أنا بوت ذكي متطور يمكنني:\n\n"
+        f"أنا بوت ذكي لتجربة الملابس الافتراضية باستخدام الذكاء الاصطناعي\n\n"
         f"👕 <b>تجربة الملابس الافتراضية</b>\n"
         f"   • جرب الملابس على أي شخص باستخدام AI\n"
         f"   • نموذجان متطوران للاختيار\n"
-        f"   • نتائج واقعية ومذهلة\n\n"
-        f"💬 <b>المحادثة الذكية</b>\n"
-        f"   • إجابة على أسئلتك باستخدام Gemini AI\n"
-        f"   • دعم اللغة العربية والإنجليزية\n\n"
-        f"الحالة: {status_message}\n\n"
-        f"👇 <b>اضغط على أحد الأزرار أدناه لبدء الاستخدام:</b>",
+        f"   • نتائج واقعية ومذهلة\n"
+        f"   • أنواع ملابس متنوعة (علوية، سفلية، فساتين)\n\n"
+        f"👇 <b>اضغط على الزر أدناه لبدء تجربة الملابس:</b>",
         reply_markup=reply_markup
     )
 
@@ -242,29 +210,29 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     help_text = """
-🤖 *مساعدة البوت المتطور*
+🤖 *مساعدة بوت تجربة الملابس الافتراضية*
 
 *🎯 الخدمات المتاحة:*
 
 *👕 تجربة الملابس الافتراضية:*
 • ارفع صورة شخص + صورة ملابس
-• اختر النموذج المناسب
+• اختر النموذج المناسب (Kolors أو PawanratRung)
 • احصل على نتيجة واقعية مذهلة
 
-*💬 المحادثة الذكية:*
-• اطرح أي سؤال وسأجيب عليه
-• دعم العربية والإنجليزية
-• مدعوم بـ Google Gemini AI
-
-*📝 الأوامر:*
+* الأوامر:*
 /start - القائمة الرئيسية
 /help - هذه المساعدة
 /tryon - بدء تجربة الملابس مباشرة
 
-*💡 نصائح:*
+*💡 نصائح للحصول على أفضل النتائج:*
 • استخدم صور واضحة وعالية الجودة
-• تأكد من ظهور الشخص كاملاً
-• الملابس بخلفية بسيطة تعطي نتائج أفضل
+• تأكد من ظهور الشخص كاملاً في الصورة
+• اختر ملابس بخلفية بسيطة
+• تجنب الصور الضبابية أو المظلمة
+
+*🔧 النماذج المتاحة:*
+• النموذج الأول (Kolors): سريع وسهل الاستخدام
+• النموذج الثاني (PawanratRung): يدعم أنواع ملابس متنوعة
     """
     
     if update.callback_query:
@@ -390,116 +358,32 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             reply_markup=reply_markup
         )
     
-    elif data == "chat_mode":
-        user_states[user_id] = {"mode": "chat"}
-        
-        keyboard = [
-            [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data="main_menu")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(
-            "💬 *وضع المحادثة الذكية*\n\n"
-            "الآن يمكنك إرسال أي رسالة وسأجيب عليها باستخدام الذكاء الاصطناعي!\n\n"
-            "🎯 يمكنني مساعدتك في:\n"
-            "• الإجابة على الأسئلة العامة\n"
-            "• الترجمة\n"
-            "• شرح المفاهيم\n"
-            "• كتابة النصوص\n"
-            "• وأكثر من ذلك بكثير!",
-            parse_mode='Markdown',
-            reply_markup=reply_markup
-        )
-    
     elif data == "help":
         await help_command(update, context)
     
     elif data == "main_menu":
+        # إعادة تعيين حالة المستخدم
         user_states[user_id] = {}
-        await start_from_callback(update, context)
-
-async def start_from_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """إعادة عرض القائمة الرئيسية من callback"""
-    query = update.callback_query
-    user = query.from_user
-    
-    status_message = "✅ متصل بـ Gemini AI" if gemini_available else "⚠️ يعمل بالردود الذكية الافتراضية"
-    
-    keyboard = [
-        [InlineKeyboardButton("👕 تجربة الملابس الافتراضية", callback_data="virtual_tryon")],
-        [InlineKeyboardButton("💬 محادثة ذكية", callback_data="chat_mode")],
-        [InlineKeyboardButton("ℹ️ المساعدة", callback_data="help")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(
-        f"مرحباً {user.mention_html()}! 🤖\n\n"
-        f"أنا بوت ذكي متطور يمكنني:\n\n"
-        f"👕 <b>تجربة الملابس الافتراضية</b>\n"
-        f"   • جرب الملابس على أي شخص باستخدام AI\n"
-        f"   • نموذجان متطوران للاختيار\n"
-        f"   • نتائج واقعية ومذهلة\n\n"
-        f"💬 <b>المحادثة الذكية</b>\n"
-        f"   • إجابة على أسئلتك باستخدام Gemini AI\n"
-        f"   • دعم اللغة العربية والإنجليزية\n\n"
-        f"الحالة: {status_message}\n\n"
-        f"اختر الخدمة التي تريدها:",
-        parse_mode='HTML',
-        reply_markup=reply_markup
-    )
-
-async def get_smart_response(user_message: str) -> str:
-    """الحصول على رد ذكي - إما من Gemini أو ردود افتراضية ذكية"""
-    global model, gemini_available
-    
-    # محاولة استخدام Gemini إذا كان متاحاً
-    if gemini_available and model:
-        try:
-            prompt = f"""
-أنت مساعد ذكي ومفيد. أجب على السؤال التالي بطريقة ودودة ومفيدة.
-إذا كان السؤال باللغة العربية، أجب باللغة العربية.
-إذا كان السؤال باللغة الإنجليزية، أجب باللغة الإنجليزية.
-
-السؤال: {user_message}
-            """
-            response = model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            logger.error(f"خطأ في Gemini: {e}")
-            gemini_available = False
-            logger.info("🔄 تحويل إلى الردود الافتراضية")
-    
-    # ردود ذكية افتراضية
-    message_lower = user_message.lower()
-    
-    # ردود باللغة العربية
-    if any(arabic_word in user_message for arabic_word in ['مرحبا', 'السلام', 'أهلا', 'مساء', 'صباح']):
-        return "مرحباً بك! أهلاً وسهلاً، كيف يمكنني مساعدتك اليوم؟ 😊"
-    
-    if any(word in message_lower for word in ['شكرا', 'شكراً', 'thanks', 'thank you']):
-        return "العفو! سعيد بأنني استطعت المساعدة. إذا كان لديك أي سؤال آخر، لا تتردد! 🌟"
-    
-    if any(word in message_lower for word in ['كيف حالك', 'كيفك', 'how are you']):
-        return "الحمد لله، بخير وأتمنى أن تكون بخير أيضاً! كيف يمكنني مساعدتك؟ 😊"
-    
-    if any(word in message_lower for word in ['ما اسمك', 'what is your name', 'who are you']):
-        return "أنا بوت ذكي مساعد! اسمي المساعد الذكي، وأنا هنا لمساعدتك في أي شيء تحتاجه. 🤖"
-    
-    # ردود باللغة الإنجليزية
-    if any(word in message_lower for word in ['hello', 'hi', 'hey', 'good morning', 'good evening']):
-        return "Hello! Welcome, how can I help you today? 😊"
-    
-    if 'weather' in message_lower:
-        return "I'm sorry, I don't have access to current weather data. You can check a weather app or website for accurate information! ☀️"
-    
-    if 'time' in message_lower:
-        return "I don't have access to real-time data. Please check your device's clock for the current time! ⏰"
-    
-    # رد افتراضي ذكي
-    if any(char in user_message for char in 'أبتثجحخدذرزسشصضطظعغفقكلمنهوي'):
-        return f"شكراً لك على رسالتك! فهمت أنك تسأل عن: '{user_message}'\n\nأعتذر، لكن خدمة الذكاء الاصطناعي غير متاحة حالياً. ولكن يمكنني مساعدتك بأشياء أساسية!\n\nجرب أن تسأل عن:\n• معلومات عامة\n• التحية\n• أسئلة بسيطة\n\nكيف يمكنني مساعدتك؟ 😊"
-    else:
-        return f"Thank you for your message! I understand you're asking about: '{user_message}'\n\nI apologize, but the AI service is currently unavailable. However, I can help with basic things!\n\nTry asking about:\n• General information\n• Greetings\n• Simple questions\n\nHow can I help you? 😊"
+        
+        # إنشاء لوحة المفاتيح
+        keyboard = [
+            [InlineKeyboardButton("� تجربة الملابس الافتراضية", callback_data="virtual_tryon")],
+            [InlineKeyboardButton("ℹ️ المساعدة", callback_data="help")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            f"🎉 <b>مرحباً بك مرة أخرى!</b> 🤖\n\n"
+            f"أنا بوت ذكي لتجربة الملابس الافتراضية باستخدام الذكاء الاصطناعي\n\n"
+            f"👕 <b>تجربة الملابس الافتراضية</b>\n"
+            f"   • جرب الملابس على أي شخص باستخدام AI\n"
+            f"   • نموذجان متطوران للاختيار\n"
+            f"   • نتائج واقعية ومذهلة\n"
+            f"   • أنواع ملابس متنوعة (علوية، سفلية، فساتين)\n\n"
+            f"👇 <b>اضغط على الزر أدناه لبدء تجربة الملابس:</b>",
+            parse_mode='HTML',
+            reply_markup=reply_markup
+        )
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """عرض القائمة الرئيسية مع الأزرار"""
@@ -509,29 +393,22 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # إعادة تعيين حالة المستخدم
     user_states[user_id] = {}
     
-    # تحديد حالة النظام
-    status_message = "✅ متصل بـ Gemini AI" if gemini_available else "⚠️ يعمل بالردود الذكية الافتراضية"
-    
     # إنشاء لوحة المفاتيح
     keyboard = [
         [InlineKeyboardButton("👕 تجربة الملابس الافتراضية", callback_data="virtual_tryon")],
-        [InlineKeyboardButton("💬 محادثة ذكية", callback_data="chat_mode")],
         [InlineKeyboardButton("ℹ️ المساعدة", callback_data="help")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await update.message.reply_html(
-        f"مرحباً {user.mention_html()}! 🤖\n\n"
-        f"أنا بوت ذكي متطور يمكنني:\n\n"
+        f"🎉 <b>مرحباً {user.mention_html()}!</b> 🤖\n\n"
+        f"أنا بوت ذكي لتجربة الملابس الافتراضية باستخدام الذكاء الاصطناعي\n\n"
         f"👕 <b>تجربة الملابس الافتراضية</b>\n"
         f"   • جرب الملابس على أي شخص باستخدام AI\n"
         f"   • نموذجان متطوران للاختيار\n"
-        f"   • نتائج واقعية ومذهلة\n\n"
-        f"💬 <b>المحادثة الذكية</b>\n"
-        f"   • إجابة على أسئلتك باستخدام Gemini AI\n"
-        f"   • دعم اللغة العربية والإنجليزية\n\n"
-        f"الحالة: {status_message}\n\n"
-        f"👇 <b>اختر الخدمة التي تريدها من الأزرار أدناه:</b>",
+        f"   • نتائج واقعية ومذهلة\n"
+        f"   • أنواع ملابس متنوعة (علوية، سفلية، فساتين)\n\n"
+        f"👇 <b>اضغط على الزر أدناه لبدء تجربة الملابس:</b>",
         reply_markup=reply_markup
     )
 
@@ -559,23 +436,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 await show_main_menu(update, context)
                 return
             
-            # إذا كان في وضع المحادثة
-            if user_state.get("mode") == "chat":
-                await handle_chat_message(update, context)
-            else:
-                # رسالة تذكير للمستخدم بالعملية الجارية
-                if user_state.get("mode") == "virtual_tryon":
-                    step = user_state.get("step", "")
-                    if step == "upload_person":
-                        await update.message.reply_text(
-                            "📸 أنتظر منك إرسال صورة الشخص، وليس رسالة نصية.\n\n"
-                            "💡 ارفع الصورة كصورة (Photo) وليس كملف."
-                        )
-                    elif step == "upload_garment":
-                        await update.message.reply_text(
-                            "👕 أنتظر منك إرسال صورة الملابس، وليس رسالة نصية.\n\n"
-                            "💡 ارفع الصورة كصورة (Photo) وليس كملف."
-                        )
+            # رسالة تذكير للمستخدم بالعملية الجارية
+            if user_state.get("mode") == "virtual_tryon":
+                step = user_state.get("step", "")
+                if step == "upload_person":
+                    await update.message.reply_text(
+                        "📸 أنتظر منك إرسال صورة الشخص، وليس رسالة نصية.\n\n"
+                        "💡 ارفع الصورة كصورة (Photo) وليس كملف."
+                    )
+                elif step == "upload_garment":
+                    await update.message.reply_text(
+                        "👕 أنتظر منك إرسال صورة الملابس، وليس رسالة نصية.\n\n"
+                        "💡 ارفع الصورة كصورة (Photo) وليس كملف."
+                    )
+                else:
+                    # إذا لم يكن في خطوة تحميل، أعرض القائمة الرئيسية
+                    await show_main_menu(update, context)
         
     except Exception as e:
         logger.error(f"خطأ في معالجة الرسالة: {e}")
@@ -687,42 +563,9 @@ async def handle_photo_for_tryon(update: Update, context: ContextTypes.DEFAULT_T
         )
 
 async def handle_chat_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """معالجة رسائل المحادثة العادية"""
-    try:
-        user_message = update.message.text
-        user_name = update.effective_user.first_name
-        
-        logger.info(f"رسالة من {user_name}: {user_message}")
-        
-        # إرسال إشعار "يكتب..."
-        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-        
-        # الحصول على الإجابة
-        ai_response = await get_smart_response(user_message)
-        
-        # إضافة رسالة توضيحية للوصول للقائمة الرئيسية
-        keyboard = [
-            [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")],
-            [InlineKeyboardButton("👕 تجربة الملابس", callback_data="virtual_tryon")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        # إرسال الإجابة مع الأزرار
-        await update.message.reply_text(
-            f"{ai_response}\n\n"
-            "━━━━━━━━━━━━━━━━━━━━━\n"
-            "💡 <b>تلميح:</b> يمكنك استخدام الأزرار أدناه أو كتابة /start لرؤية جميع الخدمات المتاحة",
-            parse_mode='HTML',
-            reply_markup=reply_markup
-        )
-        
-        logger.info(f"تم إرسال الإجابة إلى {user_name}")
-        
-    except Exception as e:
-        logger.error(f"خطأ في معالجة رسالة المحادثة: {e}")
-        await update.message.reply_text(
-            "عذراً، حدث خطأ أثناء معالجة رسالتك. يرجى المحاولة مرة أخرى. 🙏"
-        )
+    """معالجة رسائل المحادثة العادية - تم إلغاؤها"""
+    # تم إزالة وضع المحادثة، عرض القائمة الرئيسية
+    await show_main_menu(update, context)
 
 async def tryon_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """أمر مباشر لبدء تجربة الملابس"""
@@ -785,18 +628,12 @@ def main() -> None:
         # إضافة معالج الأخطاء
         application.add_error_handler(error_handler)
         
-        logger.info("🤖 بدء تشغيل البوت المتطور...")
-        print("🤖 البوت المتطور يعمل الآن! اضغط Ctrl+C للإيقاف")
+        logger.info("🤖 بدء تشغيل بوت تجربة الملابس الافتراضية...")
+        print("🤖 بوت تجربة الملابس الافتراضية يعمل الآن! اضغط Ctrl+C للإيقاف")
         print("✨ الميزات المتاحة:")
         print("   👕 تجربة الملابس الافتراضية")
-        print("   💬 المحادثة الذكية")
-        
-        # عرض حالة النظام
-        if gemini_available:
-            print("✅ متصل بـ Gemini AI")
-        else:
-            print("⚠️ يعمل بالردود الذكية الافتراضية")
-            print("💡 هذا طبيعي عند الاستضافة على المنصات السحابية")
+        print("   🎨 نموذجان متطوران (Kolors و PawanratRung)")
+        print("   � أنواع ملابس متنوعة")
         
         # تشغيل البوت
         application.run_polling(drop_pending_updates=True)
