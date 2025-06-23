@@ -46,9 +46,6 @@ except Exception as e:
         return file_path
     logger.error(f"❌ خطأ في استيراد handle_file: {e}")
 
-# الحصول على التوكنات من متغيرات البيئة
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-
 # الحصول على توكن التليجرام
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 
@@ -89,11 +86,26 @@ class GraffitiAI:
         """إنشاء عميل الذكاء الاصطناعي"""
         try:
             model_info = AI_MODELS[model_key]
-            client = Client(model_info["client_id"])
+            # إضافة timeout وإعدادات محسنة للاتصال
+            client = Client(model_info["client_id"], timeout=120)
             logger.info(f"✅ تم الاتصال بنموذج {model_info['name']}")
             return client
         except Exception as e:
-            logger.error(f"❌ خطأ في إنشاء العميل: {e}")
+            logger.error(f"❌ خطأ في إنشاء العميل {AI_MODELS.get(model_key, {}).get('name', model_key)}: {e}")
+            # محاولة الاتصال بالنموذج البديل
+            try:
+                if model_key == "g1_fast":
+                    # جرب النموذج البديل
+                    alt_client = Client("PawanratRung/virtual-try-on", timeout=120)
+                    logger.info("✅ تم الاتصال بالنموذج البديل G1 Pro")
+                    return alt_client
+                elif model_key == "g1_pro":
+                    # جرب النموذج البديل
+                    alt_client = Client("krsatyam7/Virtual_Clothing_Try-On-new", timeout=120)
+                    logger.info("✅ تم الاتصال بالنموذج البديل G1 Fast")
+                    return alt_client
+            except Exception as e2:
+                logger.error(f"❌ فشل في الاتصال بالنموذج البديل: {e2}")
             return None
     
     @staticmethod
@@ -130,22 +142,46 @@ class GraffitiAI:
                 garment_img.save(garment_file.name, format='PNG')
                 garment_path = garment_file.name
             
-            # تشغيل النموذج المناسب
+            # تشغيل النموذج المناسب مع إعادة المحاولة
             model_info = AI_MODELS[model_key]
+            result = None
             
-            if model_key == "g1_fast":
-                result = client.predict(
-                    person_image=handle_file(person_path),
-                    clothing_image=handle_file(garment_path),
-                    api_name=model_info["api_endpoint"]
-                )
-            else:  # g1_pro
-                result = client.predict(
-                    person_path=handle_file(person_path),
-                    garment_path=handle_file(garment_path),
-                    garment_type=garment_type,
-                    api_name=model_info["api_endpoint"]
-                )
+            try:
+                if model_key == "g1_fast":
+                    result = client.predict(
+                        person_image=handle_file(person_path),
+                        clothing_image=handle_file(garment_path),
+                        api_name=model_info["api_endpoint"]
+                    )
+                else:  # g1_pro
+                    result = client.predict(
+                        person_path=handle_file(person_path),
+                        garment_path=handle_file(garment_path),
+                        garment_type=garment_type,
+                        api_name=model_info["api_endpoint"]
+                    )
+            except Exception as api_error:
+                logger.error(f"❌ خطأ في API: {api_error}")
+                # محاولة مع النموذج البديل
+                try:
+                    if model_key == "g1_fast":
+                        # جرب النموذج البديل بـ API مختلف
+                        result = client.predict(
+                            person_path=handle_file(person_path),
+                            garment_path=handle_file(garment_path),
+                            garment_type="upper_body",
+                            api_name="/virtual_tryon"
+                        )
+                    else:
+                        # جرب النموذج البديل بـ API مختلف
+                        result = client.predict(
+                            person_image=handle_file(person_path),
+                            clothing_image=handle_file(garment_path),
+                            api_name="/swap_clothing"
+                        )
+                except Exception as fallback_error:
+                    logger.error(f"❌ فشل في النموذج البديل: {fallback_error}")
+                    return None, "❌ جميع النماذج غير متاحة حالياً، حاول لاحقاً"
             
             # تنظيف الملفات المؤقتة
             try:
@@ -154,8 +190,11 @@ class GraffitiAI:
             except:
                 pass
             
-            return result, "✅ تم إنتاج النتيجة بنجاح!"
-            
+            if result:
+                return result, "✅ تم إنتاج النتيجة بنجاح!"
+            else:
+                return None, "❌ لم يتم إنتاج نتيجة"
+                
         except Exception as e:
             logger.error(f"❌ خطأ في معالجة تجربة الملابس: {e}")
             return None, f"❌ خطأ: {str(e)}"
@@ -193,7 +232,10 @@ class TelegramHandlers:
 👇 <b>اختر ما تريد فعله:</b>
         """
         
-        await update.message.reply_html(welcome_text, reply_markup=reply_markup)
+        if update.callback_query:
+            await update.callback_query.edit_message_text(welcome_text, parse_mode='HTML', reply_markup=reply_markup)
+        else:
+            await update.message.reply_html(welcome_text, reply_markup=reply_markup)
     
     @staticmethod
     async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
