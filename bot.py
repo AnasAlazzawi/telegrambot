@@ -203,9 +203,7 @@ class GraffitiAI:
             return None, f"❌ خطأ: {str(e)}"
 
 class TelegramHandlers:
-    """معالجات رسائل تليجرام"""
-    
-    @staticmethod
+    """معالجات رسائل تليجرام"""    @staticmethod
     async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """أمر البداية"""
         user = update.effective_user
@@ -221,8 +219,7 @@ class TelegramHandlers:
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        welcome_text = f"""
-🎨 <b>مرحباً {user.mention_html()}!</b>
+        welcome_text = f"""🎨 <b>مرحباً {user.mention_html()}!</b>
 
 أنا <b>Graffiti AI</b> - بوت ذكي متطور لتجربة الملابس الافتراضية 🤖
 
@@ -232,13 +229,20 @@ class TelegramHandlers:
 🎯 دعم أنواع ملابس متنوعة
 ⚡ معالجة سريعة وعالية الجودة
 
-👇 <b>اختر ما تريد فعله:</b>
-        """
+👇 <b>اختر ما تريد فعله:</b>"""
         
-        if update.callback_query:
-            await update.callback_query.edit_message_text(welcome_text, parse_mode='HTML', reply_markup=reply_markup)
-        else:
-            await update.message.reply_html(welcome_text, reply_markup=reply_markup)
+        try:
+            if update.callback_query:
+                await update.callback_query.edit_message_text(welcome_text, parse_mode='HTML', reply_markup=reply_markup)
+            else:
+                await update.message.reply_html(welcome_text, reply_markup=reply_markup)
+        except Exception as e:
+            logger.error(f"خطأ في إرسال رسالة البداية: {e}")
+            # إرسال رسالة جديدة بدلاً من تحرير الموجودة
+            if update.callback_query:
+                await update.callback_query.message.reply_html(welcome_text, reply_markup=reply_markup)
+            else:
+                await update.message.reply_html(welcome_text, reply_markup=reply_markup)
     
     @staticmethod
     async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -316,36 +320,42 @@ Graffiti AI هو بوت ذكي متطور يستخدم أحدث تقنيات ا�
                 about_text, parse_mode='HTML', reply_markup=reply_markup
             )
         else:
-            await update.message.reply_html(about_text, reply_markup=reply_markup)
-    
-    @staticmethod
+            await update.message.reply_html(about_text, reply_markup=reply_markup)    @staticmethod
     async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """معالجة ضغطات الأزرار"""
-        query = update.callback_query
-        user_id = query.from_user.id
-        data = query.data
+        try:
+            query = update.callback_query
+            user_id = query.from_user.id
+            data = query.data
+            
+            await query.answer()
+            
+            if data == "main_menu":
+                await TelegramHandlers.start_command(update, context)
+                
+            elif data == "help":
+                await TelegramHandlers.help_command(update, context)
+                
+            elif data == "about":
+                await TelegramHandlers.about_command(update, context)
+                
+            elif data == "start_tryon":
+                await TelegramHandlers.start_virtual_tryon(update, context)
+                
+            elif data.startswith("select_model_"):
+                model_key = data.replace("select_model_", "")
+                await TelegramHandlers.model_selected(update, context, model_key)
+                
+            elif data.startswith("garment_"):
+                garment_type = data.replace("garment_", "")
+                await TelegramHandlers.garment_type_selected(update, context, garment_type)
         
-        await query.answer()
-        
-        if data == "main_menu":
-            await TelegramHandlers.start_command(update, context)
-            
-        elif data == "help":
-            await TelegramHandlers.help_command(update, context)
-            
-        elif data == "about":
-            await TelegramHandlers.about_command(update, context)
-            
-        elif data == "start_tryon":
-            await TelegramHandlers.start_virtual_tryon(update, context)
-            
-        elif data.startswith("select_model_"):
-            model_key = data.replace("select_model_", "")
-            await TelegramHandlers.model_selected(update, context, model_key)
-            
-        elif data.startswith("garment_"):
-            garment_type = data.replace("garment_", "")
-            await TelegramHandlers.garment_type_selected(update, context, garment_type)
+        except Exception as e:
+            logger.error(f"خطأ في معالجة الضغط: {e}")
+            try:
+                await update.callback_query.answer("❌ حدث خطأ، حاول مرة أخرى")
+            except:
+                pass
     
     @staticmethod
     async def start_virtual_tryon(update: Update, context: ContextTypes.DEFAULT_TYPE):
