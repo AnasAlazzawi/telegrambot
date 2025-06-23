@@ -1,5 +1,6 @@
 python-telegram-bot==20.7
 python-dotenv==1.0.0
-gradio-client>=0.15.0
+gradio-client==0.8.1
 aiohttp==3.9.1
 Pillow==10.1.0
+asyncio

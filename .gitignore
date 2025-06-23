@@ -1,13 +1,11 @@
-# Logs
-logs/*
-*.log
-
-# Environment variables
+# ملفات البيئة
 .env
 .env.local
-.env.production
+.env.development.local
+.env.test.local
+.env.production.local
 
-# Python
+# ملفات Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -30,35 +28,21 @@ wheels/
 *.egg
 MANIFEST
 
-# Virtual environment
-.venv/
-venv/
-ENV/
-env/
-
-# Assets (large files)
-assets/
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.bmp
-
-# Temporary files
-*.tmp
-*.temp
-*.swp
-*.swo
-
-# IDE
-.vscode/
-.idea/
-*.sublime-*
-
-# OS
+# ملفات النظام
 .DS_Store
 Thumbs.db
 
-# Test files
-test_images/
-temp_images/
+# ملفات التحرير
+*.swp
+*.swo
+*~
+
+# ملفات المؤقتة
+*.tmp
+*.temp
+temp/
+tmp/
+
+# سجلات الأخطاء
+*.log
+logs/

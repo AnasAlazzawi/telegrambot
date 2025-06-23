@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-بوت تليجرام ذكي لتجربة الملابس الافتراضية باستخدام AI
-Smart Telegram Bot for Virtual Try-On using AI
+Graffiti AI - Smart Telegram Bot for Virtual Try-On
+بوت تليجرام ذكي لتجربة الملابس الافتراضية باستخدام الذكاء الاصطناعي
 """
 
 import os
@@ -49,632 +49,507 @@ except Exception as e:
 # الحصول على التوكنات من متغيرات البيئة
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 
-# التحقق من وجود التوكنات
+# الحصول على توكن التليجرام
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+
 if not TELEGRAM_TOKEN:
-    raise ValueError("TELEGRAM_TOKEN غير موجود في ملف .env")
+    raise ValueError("❌ TELEGRAM_TOKEN مطلوب في ملف .env")
 
-# حالات المستخدمين للتفاعل مع الملابس
-user_states = {}
-
-# خيارات النماذج المتاحة
-MODELS = {
-    "model1": {
-        "name": "النموذج الأول - Kolors",
-        "client": "krsatyam7/Virtual_Clothing_Try-On-new",
-        "api": "/swap_clothing"
+# نماذج الذكاء الاصطناعي المتاحة
+AI_MODELS = {
+    "g1_fast": {
+        "name": "Graffiti G1 Fast",
+        "client_id": "krsatyam7/Virtual_Clothing_Try-On-new",
+        "api_endpoint": "/swap_clothing",
+        "description": "نموذج سريع ومحسن للاستخدام اليومي"
     },
-    "model2": {
-        "name": "النموذج الثاني - PawanratRung", 
-        "client": "PawanratRung/virtual-try-on",
-        "api": "/virtual_tryon"
+    "g1_pro": {
+        "name": "Graffiti G1 Pro", 
+        "client_id": "PawanratRung/virtual-try-on",
+        "api_endpoint": "/virtual_tryon",
+        "description": "نموذج متقدم مع خيارات متنوعة للملابس"
     }
 }
 
-# أنواع الملابس للنموذج الثاني
+# أنواع الملابس للنموذج المتقدم
 GARMENT_TYPES = {
-    "upper": "upper_body",
-    "lower": "lower_body", 
-    "dress": "dresses"
+    "upper": {"id": "upper_body", "name": "ملابس علوية"},
+    "lower": {"id": "lower_body", "name": "ملابس سفلية"}, 
+    "dress": {"id": "dresses", "name": "فساتين"}
 }
 
-# دوال تجربة الملابس الافتراضية
-async def initialize_virtual_tryon_client(model_choice):
-    """تهيئة عميل تجربة الملابس"""
-    try:
-        client_id = MODELS[model_choice]["client"]
-        client = Client(client_id)
-        return client
-    except Exception as e:
-        logger.error(f"خطأ في تهيئة عميل تجربة الملابس: {e}")
-        return None
+# حالات المستخدمين
+user_sessions = {}
 
-async def download_image_from_telegram(file_path, bot):
-    """تحميل صورة من تليجرام وتحويلها إلى PIL Image"""
-    try:
-        file = await bot.get_file(file_path)
-        
-        # تحميل البيانات
-        async with aiohttp.ClientSession() as session:
-            async with session.get(file.file_path) as response:
-                if response.status == 200:
-                    image_data = await response.read()
-                    image = Image.open(BytesIO(image_data))
-                    return image
-                else:
-                    return None
-    except Exception as e:
-        logger.error(f"خطأ في تحميل الصورة: {e}")
-        return None
-
-async def process_virtual_tryon(person_image, garment_image, model_choice, garment_type="upper_body"):
-    """معالجة طلب تجربة الملابس الافتراضية"""
-    try:
-        # تهيئة العميل
-        client = await initialize_virtual_tryon_client(model_choice)
-        if client is None:
-            return None, "❌ خطأ في الاتصال بخدمة تجربة الملابس"
-        
-        # حفظ الصور مؤقتاً
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as person_temp:
-            person_image.save(person_temp.name, format='PNG')
-            person_temp_path = person_temp.name
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as garment_temp:
-            garment_image.save(garment_temp.name, format='PNG')
-            garment_temp_path = garment_temp.name        # تشغيل النموذج المناسب مع معالجة أفضل للملفات
+class GraffitiAI:
+    """فئة رئيسية لبوت Graffiti AI"""
+    
+    @staticmethod
+    async def create_ai_client(model_key: str):
+        """إنشاء عميل الذكاء الاصطناعي"""
         try:
-            if model_choice == "model1":
-                # النموذج الأول - Kolors - تجربة تنسيقات مختلفة
-                try:
-                    # تجربة 1: معاملات موضعية فقط
-                    result = client.predict(
-                        handle_file(person_temp_path),
-                        handle_file(garment_temp_path),
-                        api_name="/swap_clothing"
-                    )
-                    logger.info("✅ نجح النموذج الأول - معاملات موضعية")
-                except Exception as e1:
-                    logger.warning(f"فشل التجربة الأولى للنموذج الأول: {e1}")
-                    try:
-                        # تجربة 2: بدون handle_file
-                        result = client.predict(
-                            person_temp_path,
-                            garment_temp_path,
-                            api_name="/swap_clothing"
-                        )
-                        logger.info("✅ نجح النموذج الأول - مسارات مباشرة")
-                    except Exception as e2:
-                        logger.warning(f"فشل التجربة الثانية للنموذج الأول: {e2}")
-                        try:
-                            # تجربة 3: استخدام أسماء مختلفة
-                            result = client.predict(
-                                person=handle_file(person_temp_path),
-                                garment=handle_file(garment_temp_path),
-                                api_name="/swap_clothing"
-                            )
-                            logger.info("✅ نجح النموذج الأول - أسماء مختلفة")
-                        except Exception as e3:
-                            logger.error(f"فشل جميع محاولات النموذج الأول: {e3}")
-                            raise e3
-            else:  # model2
-                # النموذج الثاني - PawanratRung - تجربة تنسيقات مختلفة
-                try:
-                    # تجربة 1: معاملات موضعية
-                    result = client.predict(
-                        handle_file(person_temp_path),
-                        handle_file(garment_temp_path),
-                        garment_type,
-                        api_name="/virtual_tryon"
-                    )
-                    logger.info("✅ نجح النموذج الثاني - معاملات موضعية")
-                except Exception as e1:
-                    logger.warning(f"فشل التجربة الأولى للنموذج الثاني: {e1}")
-                    try:
-                        # تجربة 2: بدون handle_file
-                        result = client.predict(
-                            person_temp_path,
-                            garment_temp_path,
-                            garment_type,
-                            api_name="/virtual_tryon"
-                        )
-                        logger.info("✅ نجح النموذج الثاني - مسارات مباشرة")
-                    except Exception as e2:
-                        logger.warning(f"فشل التجربة الثانية للنموذج الثاني: {e2}")
-                        try:
-                            # تجربة 3: بدون نوع الملابس
-                            result = client.predict(
-                                handle_file(person_temp_path),
-                                handle_file(garment_temp_path),
-                                api_name="/virtual_tryon"
-                            )
-                            logger.info("✅ نجح النموذج الثاني - بدون نوع الملابس")
-                        except Exception as e3:
-                            logger.error(f"فشل جميع محاولات النموذج الثاني: {e3}")
-                            raise e3
-                    
-        except Exception as api_error:
-            logger.error(f"خطأ في استدعاء API: {api_error}")
-            return None, f"❌ خطأ في معالجة الصور: {str(api_error)}"
-        
-        # تنظيف الملفات المؤقتة
+            model_info = AI_MODELS[model_key]
+            client = Client(model_info["client_id"])
+            logger.info(f"✅ تم الاتصال بنموذج {model_info['name']}")
+            return client
+        except Exception as e:
+            logger.error(f"❌ خطأ في إنشاء العميل: {e}")
+            return None
+    
+    @staticmethod
+    async def download_telegram_image(file_id: str, bot):
+        """تحميل وتحويل صورة من تليجرام إلى PIL Image"""
         try:
-            os.unlink(person_temp_path)
-            os.unlink(garment_temp_path)
-        except:
-            pass
+            file = await bot.get_file(file_id)
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(file.file_path) as response:
+                    if response.status == 200:
+                        image_data = await response.read()
+                        return Image.open(BytesIO(image_data))
+            return None
+        except Exception as e:
+            logger.error(f"❌ خطأ في تحميل الصورة: {e}")
+            return None
+    
+    @staticmethod
+    async def process_virtual_tryon(person_img, garment_img, model_key, garment_type="upper_body"):
+        """معالجة طلب تجربة الملابس الافتراضية"""
+        try:
+            # إنشاء عميل AI
+            client = await GraffitiAI.create_ai_client(model_key)
+            if not client:
+                return None, "❌ فشل في الاتصال بخدمة الذكاء الاصطناعي"
+            
+            # حفظ الصور مؤقتاً
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as person_file:
+                person_img.save(person_file.name, format='PNG')
+                person_path = person_file.name
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as garment_file:
+                garment_img.save(garment_file.name, format='PNG')
+                garment_path = garment_file.name
+            
+            # تشغيل النموذج المناسب
+            model_info = AI_MODELS[model_key]
+            
+            if model_key == "g1_fast":
+                result = client.predict(
+                    person_image=handle_file(person_path),
+                    clothing_image=handle_file(garment_path),
+                    api_name=model_info["api_endpoint"]
+                )
+            else:  # g1_pro
+                result = client.predict(
+                    person_path=handle_file(person_path),
+                    garment_path=handle_file(garment_path),
+                    garment_type=garment_type,
+                    api_name=model_info["api_endpoint"]
+                )
+            
+            # تنظيف الملفات المؤقتة
+            try:
+                os.unlink(person_path)
+                os.unlink(garment_path)
+            except:
+                pass
+            
+            return result, "✅ تم إنتاج النتيجة بنجاح!"
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في معالجة تجربة الملابس: {e}")
+            return None, f"❌ خطأ: {str(e)}"
+
+class TelegramHandlers:
+    """معالجات رسائل تليجرام"""
+    
+    @staticmethod
+    async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """أمر البداية"""
+        user = update.effective_user
+        user_id = user.id
         
-        return result, "✅ تم إنشاء النتيجة بنجاح!"
+        # إعادة تعيين جلسة المستخدم
+        user_sessions[user_id] = {}
         
-    except Exception as e:
-        logger.error(f"خطأ في معالجة تجربة الملابس: {e}")
-        return None, f"❌ خطأ: {str(e)}"
+        keyboard = [
+            [InlineKeyboardButton("🎨 تجربة الملابس الافتراضية", callback_data="start_tryon")],
+            [InlineKeyboardButton("ℹ️ حول Graffiti AI", callback_data="about")],
+            [InlineKeyboardButton("🆘 المساعدة", callback_data="help")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        welcome_text = f"""
+🎨 <b>مرحباً {user.mention_html()}!</b>
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """إرسال رسالة عند الأمر /start."""
-    user = update.effective_user
-    user_id = user.id
+أنا <b>Graffiti AI</b> - بوت ذكي متطور لتجربة الملابس الافتراضية 🤖
+
+✨ <b>الميزات المتاحة:</b>
+🔥 تجربة ملابس واقعية باستخدام AI
+🚀 نموذجان متطوران للاختيار
+🎯 دعم أنواع ملابس متنوعة
+⚡ معالجة سريعة وعالية الجودة
+
+👇 <b>اختر ما تريد فعله:</b>
+        """
+        
+        await update.message.reply_html(welcome_text, reply_markup=reply_markup)
     
-    # إعادة تعيين حالة المستخدم
-    user_states[user_id] = {}
-    
-    # إنشاء لوحة المفاتيح
-    keyboard = [
-        [InlineKeyboardButton("👕 تجربة الملابس الافتراضية", callback_data="virtual_tryon")],
-        [InlineKeyboardButton("ℹ️ المساعدة", callback_data="help")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_html(
-        f"🎉 <b>مرحباً {user.mention_html()}!</b> 🤖\n\n"
-        f"أنا بوت ذكي لتجربة الملابس الافتراضية باستخدام الذكاء الاصطناعي\n\n"
-        f"👕 <b>تجربة الملابس الافتراضية</b>\n"
-        f"   • جرب الملابس على أي شخص باستخدام AI\n"
-        f"   • نموذجان متطوران للاختيار\n"
-        f"   • نتائج واقعية ومذهلة\n"
-        f"   • أنواع ملابس متنوعة (علوية، سفلية، فساتين)\n\n"
-        f"👇 <b>اضغط على الزر أدناه لبدء تجربة الملابس:</b>",
-        reply_markup=reply_markup
-    )
+    @staticmethod
+    async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """أمر المساعدة"""
+        help_text = """
+🆘 <b>مساعدة Graffiti AI</b>
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """إرسال رسالة المساعدة عند الأمر /help."""
-    keyboard = [
-        [InlineKeyboardButton("👕 تجربة الملابس", callback_data="virtual_tryon")],
-        [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data="main_menu")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    help_text = """
-🤖 *مساعدة بوت تجربة الملابس الافتراضية*
+<b>🎯 كيفية الاستخدام:</b>
+1️⃣ اضغط "تجربة الملابس الافتراضية"
+2️⃣ اختر النموذج المناسب
+3️⃣ ارفع صورة الشخص
+4️⃣ ارفع صورة الملابس
+5️⃣ احصل على النتيجة!
 
-*🎯 الخدمات المتاحة:*
+<b>🤖 النماذج المتاحة:</b>
+🔥 <b>Graffiti G1 Fast:</b> سريع ومحسن
+🚀 <b>Graffiti G1 Pro:</b> متقدم مع خيارات أكثر
 
-*👕 تجربة الملابس الافتراضية:*
-• ارفع صورة شخص + صورة ملابس
-• اختر النموذج المناسب (Kolors أو PawanratRung)
-• احصل على نتيجة واقعية مذهلة
+<b>💡 نصائح للنتائج الأفضل:</b>
+• استخدم صور واضحة وعالية الجودة
+• تأكد من إضاءة جيدة في الصور
+• اختر خلفيات بسيطة
+• تجنب الصور الضبابية
 
-* الأوامر:*
+<b>📞 الأوامر المتاحة:</b>
 /start - القائمة الرئيسية
 /help - هذه المساعدة
-/tryon - بدء تجربة الملابس مباشرة
-
-*💡 نصائح للحصول على أفضل النتائج:*
-• استخدم صور واضحة وعالية الجودة
-• تأكد من ظهور الشخص كاملاً في الصورة
-• اختر ملابس بخلفية بسيطة
-• تجنب الصور الضبابية أو المظلمة
-
-*🔧 النماذج المتاحة:*
-• النموذج الأول (Kolors): سريع وسهل الاستخدام
-• النموذج الثاني (PawanratRung): يدعم أنواع ملابس متنوعة
-    """
+/about - حول البوت
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("🎨 تجربة الملابس", callback_data="start_tryon")],
+            [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if update.callback_query:
+            await update.callback_query.edit_message_text(
+                help_text, parse_mode='HTML', reply_markup=reply_markup
+            )
+        else:
+            await update.message.reply_html(help_text, reply_markup=reply_markup)
     
-    if update.callback_query:
-        await update.callback_query.edit_message_text(
-            help_text, 
-            parse_mode='Markdown',
-            reply_markup=reply_markup
-        )
-    else:
-        await update.message.reply_text(
-            help_text, 
-            parse_mode='Markdown',
-            reply_markup=reply_markup
-        )
+    @staticmethod
+    async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """معلومات حول البوت"""
+        about_text = """
+🎨 <b>Graffiti AI</b>
 
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """معالجة الضغط على الأزرار"""
-    query = update.callback_query
-    user_id = query.from_user.id
-    data = query.data
+<b>🤖 حول البوت:</b>
+Graffiti AI هو بوت ذكي متطور يستخدم أحدث تقنيات الذكاء الاصطناعي لتجربة الملابس الافتراضية
+
+<b>⚡ التقنيات المستخدمة:</b>
+• نماذج AI متطورة للرؤية الحاسوبية
+• معالجة الصور بالذكاء الاصطناعي
+• خوارزميات التعلم العميق
+• واجهة تليجرام تفاعلية
+
+<b>🔥 النماذج:</b>
+• <b>Graffiti G1 Fast:</b> نموذج محسن للسرعة
+• <b>Graffiti G1 Pro:</b> نموذج متقدم للدقة
+
+<b>✨ الإصدار:</b> 2.0
+<b>🔧 المطور:</b> Graffiti AI Team
+        """
+        
+        keyboard = [
+            [InlineKeyboardButton("🎨 جرب الآن", callback_data="start_tryon")],
+            [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if update.callback_query:
+            await update.callback_query.edit_message_text(
+                about_text, parse_mode='HTML', reply_markup=reply_markup
+            )
+        else:
+            await update.message.reply_html(about_text, reply_markup=reply_markup)
     
-    await query.answer()
+    @staticmethod
+    async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """معالجة ضغطات الأزرار"""
+        query = update.callback_query
+        user_id = query.from_user.id
+        data = query.data
+        
+        await query.answer()
+        
+        if data == "main_menu":
+            await TelegramHandlers.start_command(update, context)
+            
+        elif data == "help":
+            await TelegramHandlers.help_command(update, context)
+            
+        elif data == "about":
+            await TelegramHandlers.about_command(update, context)
+            
+        elif data == "start_tryon":
+            await TelegramHandlers.start_virtual_tryon(update, context)
+            
+        elif data.startswith("select_model_"):
+            model_key = data.replace("select_model_", "")
+            await TelegramHandlers.model_selected(update, context, model_key)
+            
+        elif data.startswith("garment_"):
+            garment_type = data.replace("garment_", "")
+            await TelegramHandlers.garment_type_selected(update, context, garment_type)
     
-    if data == "virtual_tryon":
-        # بدء تجربة الملابس
-        user_states[user_id] = {
+    @staticmethod
+    async def start_virtual_tryon(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """بدء تجربة الملابس الافتراضية"""
+        user_id = update.callback_query.from_user.id
+        
+        user_sessions[user_id] = {
             "mode": "virtual_tryon",
-            "step": "choose_model",
-            "person_image": None,
-            "garment_image": None,
-            "model": None,
-            "garment_type": "upper_body"
+            "step": "select_model"
         }
         
         keyboard = [
-            [InlineKeyboardButton("🎨 " + MODELS["model1"]["name"], callback_data="select_model1")],
-            [InlineKeyboardButton("🚀 " + MODELS["model2"]["name"], callback_data="select_model2")],
+            [InlineKeyboardButton("🔥 Graffiti G1 Fast", callback_data="select_model_g1_fast")],
+            [InlineKeyboardButton("🚀 Graffiti G1 Pro", callback_data="select_model_g1_pro")],
             [InlineKeyboardButton("🔙 العودة", callback_data="main_menu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await query.edit_message_text(
-            "👕 *تجربة الملابس الافتراضية*\n\n"
-            "اختر النموذج الذي تريد استخدامه:\n\n"
-            "🎨 *النموذج الأول (Kolors):*\n"
-            "• أسرع في المعالجة\n"
-            "• سهل الاستخدام\n"
-            "• مناسب للاستخدام السريع\n\n"
-            "🚀 *النموذج الثاني (PawanratRung):*\n"
-            "• يدعم أنواع ملابس متنوعة\n"
-            "• نتائج أكثر تفصيلاً\n"
-            "• خيارات متقدمة أكثر",
-            parse_mode='Markdown',
-            reply_markup=reply_markup
+        model_text = """
+🎨 <b>اختر نموذج Graffiti AI</b>
+
+<b>🔥 Graffiti G1 Fast:</b>
+• معالجة سريعة ومحسنة
+• مناسب للاستخدام اليومي
+• نتائج عالية الجودة
+
+<b>🚀 Graffiti G1 Pro:</b>
+• نموذج متقدم ومتطور
+• دعم أنواع ملابس متعددة
+• دقة عالية جداً
+• خيارات تخصيص أكثر
+
+👇 <b>اختر النموذج المناسب:</b>
+        """
+        
+        await update.callback_query.edit_message_text(
+            model_text, parse_mode='HTML', reply_markup=reply_markup
         )
     
-    elif data.startswith("select_model"):
-        model_num = data.replace("select_model", "")
-        user_states[user_id]["model"] = f"model{model_num}"
-        user_states[user_id]["step"] = "upload_person"
+    @staticmethod
+    async def model_selected(update: Update, context: ContextTypes.DEFAULT_TYPE, model_key: str):
+        """تم اختيار النموذج"""
+        user_id = update.callback_query.from_user.id
+        user_sessions[user_id]["model"] = model_key
+        user_sessions[user_id]["step"] = "upload_person"
         
-        selected_model = MODELS[f"model{model_num}"]["name"]
+        model_name = AI_MODELS[model_key]["name"]
         
-        # إذا كان النموذج الثاني، اطلب نوع الملابس
-        if model_num == "2":
+        if model_key == "g1_pro":
+            # للنموذج المتقدم، اختر نوع الملابس أولاً
             keyboard = [
-                [InlineKeyboardButton("👔 ملابس علوية (قمصان، بلوزات)", callback_data="garment_upper")],
-                [InlineKeyboardButton("👖 ملابس سفلية (بناطيل)", callback_data="garment_lower")],
+                [InlineKeyboardButton("👕 ملابس علوية", callback_data="garment_upper")],
+                [InlineKeyboardButton("👖 ملابس سفلية", callback_data="garment_lower")],
                 [InlineKeyboardButton("👗 فساتين", callback_data="garment_dress")],
-                [InlineKeyboardButton("🔙 تغيير النموذج", callback_data="virtual_tryon")]
+                [InlineKeyboardButton("🔙 تغيير النموذج", callback_data="start_tryon")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            user_states[user_id]["step"] = "choose_garment_type"
-            
-            await query.edit_message_text(
-                f"✅ تم اختيار: *{selected_model}*\n\n"
+            await update.callback_query.edit_message_text(
+                f"✅ تم اختيار: <b>{model_name}</b>\n\n"
                 "👔 اختر نوع الملابس التي ستجربها:",
-                parse_mode='Markdown',
+                parse_mode='HTML',
                 reply_markup=reply_markup
             )
         else:
+            # للنموذج السريع، انتقل مباشرة لرفع صورة الشخص
             keyboard = [
-                [InlineKeyboardButton("🔙 تغيير النموذج", callback_data="virtual_tryon")]
+                [InlineKeyboardButton("🔙 تغيير النموذج", callback_data="start_tryon")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await query.edit_message_text(
-                f"✅ تم اختيار: *{selected_model}*\n\n"
-                "📸 الآن أرسل صورة الشخص الذي تريد تجربة الملابس عليه\n\n"
-                "💡 *نصائح للحصول على أفضل النتائج:*\n"
-                "• استخدم صورة واضحة وعالية الجودة\n"
-                "• تأكد من ظهور الشخص كاملاً\n"
-                "• تجنب الخلفيات المعقدة",
-                parse_mode='Markdown',
+            await update.callback_query.edit_message_text(
+                f"✅ تم اختيار: <b>{model_name}</b>\n\n"
+                "📸 أرسل صورة الشخص الذي تريد تجربة الملابس عليه\n\n"
+                "💡 <b>نصائح:</b>\n"
+                "• صورة واضحة وعالية الجودة\n"
+                "• إضاءة جيدة\n"
+                "• خلفية بسيطة",
+                parse_mode='HTML',
                 reply_markup=reply_markup
             )
     
-    elif data.startswith("garment_"):
-        garment_type = data.replace("garment_", "")
-        user_states[user_id]["garment_type"] = GARMENT_TYPES[garment_type]
-        user_states[user_id]["step"] = "upload_person"
+    @staticmethod
+    async def garment_type_selected(update: Update, context: ContextTypes.DEFAULT_TYPE, garment_type: str):
+        """تم اختيار نوع الملابس"""
+        user_id = update.callback_query.from_user.id
+        user_sessions[user_id]["garment_type"] = GARMENT_TYPES[garment_type]["id"]
+        user_sessions[user_id]["step"] = "upload_person"
         
-        type_names = {
-            "upper": "ملابس علوية (قمصان، بلوزات)",
-            "lower": "ملابس سفلية (بناطيل)",
-            "dress": "فساتين"
-        }
-        
+        type_name = GARMENT_TYPES[garment_type]["name"]
         keyboard = [
-            [InlineKeyboardButton("🔙 تغيير النوع", callback_data="select_model2")]
+            [InlineKeyboardButton("🔙 تغيير النوع", callback_data="select_model_g1_pro")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await query.edit_message_text(
-            f"✅ تم اختيار: *{type_names[garment_type]}*\n\n"
-            "📸 الآن أرسل صورة الشخص الذي تريد تجربة الملابس عليه\n\n"
-            "💡 *نصائح للحصول على أفضل النتائج:*\n"
-            "• استخدم صورة واضحة وعالية الجودة\n"
-            "• تأكد من ظهور الشخص كاملاً\n"
-            "• تجنب الخلفيات المعقدة",
-            parse_mode='Markdown',
-            reply_markup=reply_markup
-        )
-    
-    elif data == "help":
-        await help_command(update, context)
-    
-    elif data == "main_menu":
-        # إعادة تعيين حالة المستخدم
-        user_states[user_id] = {}
-        
-        # إنشاء لوحة المفاتيح
-        keyboard = [
-            [InlineKeyboardButton("� تجربة الملابس الافتراضية", callback_data="virtual_tryon")],
-            [InlineKeyboardButton("ℹ️ المساعدة", callback_data="help")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(
-            f"🎉 <b>مرحباً بك مرة أخرى!</b> 🤖\n\n"
-            f"أنا بوت ذكي لتجربة الملابس الافتراضية باستخدام الذكاء الاصطناعي\n\n"
-            f"👕 <b>تجربة الملابس الافتراضية</b>\n"
-            f"   • جرب الملابس على أي شخص باستخدام AI\n"
-            f"   • نموذجان متطوران للاختيار\n"
-            f"   • نتائج واقعية ومذهلة\n"
-            f"   • أنواع ملابس متنوعة (علوية، سفلية، فساتين)\n\n"
-            f"👇 <b>اضغط على الزر أدناه لبدء تجربة الملابس:</b>",
+        await update.callback_query.edit_message_text(
+            f"✅ تم اختيار: <b>{type_name}</b>\n\n"
+            "📸 أرسل صورة الشخص الذي تريد تجربة الملابس عليه\n\n"
+            "💡 <b>نصائح:</b>\n"
+            "• صورة واضحة وعالية الجودة\n"
+            "• إضاءة جيدة\n"
+            "• خلفية بسيطة",
             parse_mode='HTML',
             reply_markup=reply_markup
         )
-
-async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """عرض القائمة الرئيسية مع الأزرار"""
-    user = update.effective_user
-    user_id = user.id
     
-    # إعادة تعيين حالة المستخدم
-    user_states[user_id] = {}
-    
-    # إنشاء لوحة المفاتيح
-    keyboard = [
-        [InlineKeyboardButton("👕 تجربة الملابس الافتراضية", callback_data="virtual_tryon")],
-        [InlineKeyboardButton("ℹ️ المساعدة", callback_data="help")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_html(
-        f"🎉 <b>مرحباً {user.mention_html()}!</b> 🤖\n\n"
-        f"أنا بوت ذكي لتجربة الملابس الافتراضية باستخدام الذكاء الاصطناعي\n\n"
-        f"👕 <b>تجربة الملابس الافتراضية</b>\n"
-        f"   • جرب الملابس على أي شخص باستخدام AI\n"
-        f"   • نموذجان متطوران للاختيار\n"
-        f"   • نتائج واقعية ومذهلة\n"
-        f"   • أنواع ملابس متنوعة (علوية، سفلية، فساتين)\n\n"
-        f"👇 <b>اضغط على الزر أدناه لبدء تجربة الملابس:</b>",
-        reply_markup=reply_markup
-    )
-
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """التعامل مع الرسائل النصية والصور."""
-    try:
+    @staticmethod
+    async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """معالجة الصور المرسلة"""
         user_id = update.effective_user.id
-        user_name = update.effective_user.first_name
         
-        # التحقق من حالة المستخدم
-        if user_id not in user_states:
-            user_states[user_id] = {}
-        
-        user_state = user_states[user_id]
-        
-        # معالجة الصور لتجربة الملابس
-        if update.message.photo and user_state.get("mode") == "virtual_tryon":
-            await handle_photo_for_tryon(update, context)
+        if user_id not in user_sessions or user_sessions[user_id].get("mode") != "virtual_tryon":
+            await update.message.reply_text("🎨 لبدء تجربة الملابس، استخدم الأمر /start")
             return
         
-        # معالجة الرسائل النصية
-        if update.message.text:
-            # إذا لم يكن لديه وضع محدد، عرض القائمة الرئيسية
-            if not user_state.get("mode"):
-                await show_main_menu(update, context)
-                return
-            
-            # رسالة تذكير للمستخدم بالعملية الجارية
-            if user_state.get("mode") == "virtual_tryon":
-                step = user_state.get("step", "")
-                if step == "upload_person":
-                    await update.message.reply_text(
-                        "📸 أنتظر منك إرسال صورة الشخص، وليس رسالة نصية.\n\n"
-                        "💡 ارفع الصورة كصورة (Photo) وليس كملف."
-                    )
-                elif step == "upload_garment":
-                    await update.message.reply_text(
-                        "👕 أنتظر منك إرسال صورة الملابس، وليس رسالة نصية.\n\n"
-                        "💡 ارفع الصورة كصورة (Photo) وليس كملف."
-                    )
-                else:
-                    # إذا لم يكن في خطوة تحميل، أعرض القائمة الرئيسية
-                    await show_main_menu(update, context)
-        
-    except Exception as e:
-        logger.error(f"خطأ في معالجة الرسالة: {e}")
-        await update.message.reply_text(
-            "عذراً، حدث خطأ أثناء معالجة رسالتك. يرجى المحاولة مرة أخرى. 🙏"
-        )
-
-async def handle_photo_for_tryon(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """معالجة الصور لتجربة الملابس الافتراضية"""
-    user_id = update.effective_user.id
-    user_state = user_states[user_id]
-    
-    try:
-        # الحصول على أكبر حجم للصورة
+        session = user_sessions[user_id]
         photo = update.message.photo[-1]
         
-        # إرسال إشعار "يكتب..."
         await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
         
-        if user_state.get("step") == "upload_person":
-            # تحميل صورة الشخص
-            image = await download_image_from_telegram(photo.file_id, context.bot)
+        if session.get("step") == "upload_person":
+            # رفع صورة الشخص
+            image = await GraffitiAI.download_telegram_image(photo.file_id, context.bot)
             if image:
-                user_state["person_image"] = image
-                user_state["step"] = "upload_garment"
-                
-                keyboard = [
-                    [InlineKeyboardButton("🔙 تغيير صورة الشخص", callback_data="virtual_tryon")]
-                ]
-                reply_markup = InlineKeyboardMarkup(keyboard)
+                session["person_image"] = image
+                session["step"] = "upload_garment"
                 
                 await update.message.reply_text(
-                    "✅ تم حفظ صورة الشخص بنجاح!\n\n"
+                    "✅ تم حفظ صورة الشخص!\n\n"
                     "👕 الآن أرسل صورة الملابس التي تريد تجربتها\n\n"
-                    "💡 *نصائح للملابس:*\n"
-                    "• اختر ملابس بخلفية بيضاء أو بسيطة\n"
-                    "• تأكد من وضوح الملابس في الصورة\n"
-                    "• تجنب الصور الضبابية",
-                    parse_mode='Markdown',
-                    reply_markup=reply_markup
+                    "💡 <b>نصائح للملابس:</b>\n"
+                    "• خلفية بيضاء أو بسيطة\n"
+                    "• ملابس واضحة ومفصلة\n"
+                    "• تجنب الظلال القوية",
+                    parse_mode='HTML'
                 )
             else:
-                await update.message.reply_text(
-                    "❌ فشل في تحميل الصورة. حاول مرة أخرى."
-                )
+                await update.message.reply_text("❌ فشل في معالجة الصورة. حاول مرة أخرى.")
         
-        elif user_state.get("step") == "upload_garment":
-            # تحميل صورة الملابس
-            image = await download_image_from_telegram(photo.file_id, context.bot)
+        elif session.get("step") == "upload_garment":
+            # رفع صورة الملابس ومعالجة الطلب
+            image = await GraffitiAI.download_telegram_image(photo.file_id, context.bot)
             if image:
-                user_state["garment_image"] = image
-                user_state["step"] = "processing"
+                session["garment_image"] = image
+                session["step"] = "processing"
                 
-                await update.message.reply_text(
-                    "✅ تم حفظ صورة الملابس!\n\n"
-                    "🔄 جاري معالجة طلبك... هذا قد يستغرق بضع ثوانٍ\n\n"
-                    "⏰ يرجى الانتظار..."
+                processing_msg = await update.message.reply_text(
+                    "⚡ <b>Graffiti AI يعمل...</b>\n\n"
+                    "🔄 جاري معالجة طلبك\n"
+                    "⏳ هذا قد يستغرق بضع ثوانٍ",
+                    parse_mode='HTML'
                 )
                 
                 # معالجة تجربة الملابس
-                result_image, status_message = await process_virtual_tryon(
-                    user_state["person_image"],
-                    user_state["garment_image"], 
-                    user_state["model"],
-                    user_state.get("garment_type", "upper_body")
+                result, status = await GraffitiAI.process_virtual_tryon(
+                    session["person_image"],
+                    session["garment_image"],
+                    session["model"],
+                    session.get("garment_type", "upper_body")
                 )
                 
-                if result_image:
-                    # إرسال النتيجة
+                await processing_msg.delete()
+                
+                if result:
                     keyboard = [
-                        [InlineKeyboardButton("🔄 تجربة أخرى", callback_data="virtual_tryon")],
+                        [InlineKeyboardButton("🔄 تجربة أخرى", callback_data="start_tryon")],
                         [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")]
                     ]
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     
-                    # إرسال الصورة النتيجة
+                    model_name = AI_MODELS[session["model"]]["name"]
+                    
                     await context.bot.send_photo(
                         chat_id=update.effective_chat.id,
-                        photo=result_image,
-                        caption=f"🎉 {status_message}\n\n"
-                               f"تم استخدام: {MODELS[user_state['model']]['name']}\n"
-                               f"يمكنك تجربة ملابس أخرى أو العودة للقائمة الرئيسية.",
+                        photo=result,
+                        caption=f"🎨 <b>Graffiti AI - النتيجة</b>\n\n"
+                               f"✨ {status}\n"
+                               f"🤖 النموذج: {model_name}\n\n"
+                               f"🔥 تم إنتاج هذه النتيجة بتقنية الذكاء الاصطناعي المتطورة!",
+                        parse_mode='HTML',
                         reply_markup=reply_markup
                     )
                 else:
                     keyboard = [
-                        [InlineKeyboardButton("🔄 حاول مرة أخرى", callback_data="virtual_tryon")],
+                        [InlineKeyboardButton("🔄 حاول مرة أخرى", callback_data="start_tryon")],
                         [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")]
                     ]
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     
                     await update.message.reply_text(
-                        f"❌ {status_message}\n\n"
-                        "يمكنك المحاولة مرة أخرى أو اختيار نموذج مختلف.",
+                        f"❌ {status}\n\n"
+                        "💡 نصائح لنتائج أفضل:\n"
+                        "• استخدم صور أوضح\n"
+                        "• تأكد من الإضاءة الجيدة\n"
+                        "• جرب نموذج مختلف",
                         reply_markup=reply_markup
                     )
                 
-                # إعادة تعيين حالة المستخدم
-                user_states[user_id] = {}
+                # إعادة تعيين الجلسة
+                user_sessions[user_id] = {}
             else:
-                await update.message.reply_text(
-                    "❌ فشل في تحميل صورة الملابس. حاول مرة أخرى."
-                )
+                await update.message.reply_text("❌ فشل في معالجة صورة الملابس. حاول مرة أخرى.")
     
-    except Exception as e:
-        logger.error(f"خطأ في معالجة الصورة: {e}")
+    @staticmethod
+    async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """معالجة الرسائل النصية"""
         await update.message.reply_text(
-            "❌ حدث خطأ أثناء معالجة الصورة. يرجى المحاولة مرة أخرى."
+            "🎨 مرحباً! أنا Graffiti AI\n\n"
+            "استخدم /start لبدء تجربة الملابس الافتراضية ✨"
         )
 
-async def handle_chat_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """معالجة رسائل المحادثة العادية - تم إلغاؤها"""
-    # تم إزالة وضع المحادثة، عرض القائمة الرئيسية
-    await show_main_menu(update, context)
-
-async def tryon_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """أمر مباشر لبدء تجربة الملابس"""
-    user_id = update.effective_user.id
-    
-    # إعادة تعيين حالة المستخدم
-    user_states[user_id] = {
-        "mode": "virtual_tryon",
-        "step": "choose_model",
-        "person_image": None,
-        "garment_image": None,
-        "model": None,
-        "garment_type": "upper_body"
-    }
-    
-    keyboard = [
-        [InlineKeyboardButton("🎨 " + MODELS["model1"]["name"], callback_data="select_model1")],
-        [InlineKeyboardButton("🚀 " + MODELS["model2"]["name"], callback_data="select_model2")],
-        [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data="main_menu")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_text(
-        "👕 *تجربة الملابس الافتراضية*\n\n"
-        "اختر النموذج الذي تريد استخدامه:\n\n"
-        "🎨 *النموذج الأول (Kolors):*\n"
-        "• أسرع في المعالجة\n"
-        "• سهل الاستخدام\n"
-        "• مناسب للاستخدام السريع\n\n"
-        "🚀 *النموذج الثاني (PawanratRung):*\n"
-        "• يدعم أنواع ملابس متنوعة\n"
-        "• نتائج أكثر تفصيلاً\n"
-        "• خيارات متقدمة أكثر",
-        parse_mode='Markdown',
-        reply_markup=reply_markup
-    )
-
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """تسجيل الأخطاء."""
-    logger.error("Exception while handling an update:", exc_info=context.error)
-
-def main() -> None:
-    """تشغيل البوت."""
+def main():
+    """تشغيل البوت"""
     try:
         # إنشاء التطبيق
-        application = Application.builder().token(TELEGRAM_TOKEN).build()
+        app = Application.builder().token(TELEGRAM_TOKEN).build()
         
-        # إضافة معالجات الأوامر
-        application.add_handler(CommandHandler("start", start))
-        application.add_handler(CommandHandler("help", help_command))
-        application.add_handler(CommandHandler("tryon", tryon_command))
+        # إضافة المعالجات
+        app.add_handler(CommandHandler("start", TelegramHandlers.start_command))
+        app.add_handler(CommandHandler("help", TelegramHandlers.help_command))
+        app.add_handler(CommandHandler("about", TelegramHandlers.about_command))
         
-        # إضافة معالج الأزرار
-        application.add_handler(CallbackQueryHandler(button_callback))
-        
-        # إضافة معالج الرسائل (نص وصور)
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-        application.add_handler(MessageHandler(filters.PHOTO, handle_message))
+        app.add_handler(CallbackQueryHandler(TelegramHandlers.handle_callback))
+        app.add_handler(MessageHandler(filters.PHOTO, TelegramHandlers.handle_photo))
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, TelegramHandlers.handle_text))
         
         # إضافة معالج الأخطاء
-        application.add_error_handler(error_handler)
+        async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+            logger.error("Exception while handling an update:", exc_info=context.error)
         
-        logger.info("🤖 بدء تشغيل بوت تجربة الملابس الافتراضية...")
-        print("🤖 بوت تجربة الملابس الافتراضية يعمل الآن! اضغط Ctrl+C للإيقاف")
-        print("✨ الميزات المتاحة:")
-        print("   👕 تجربة الملابس الافتراضية")
-        print("   🎨 نموذجان متطوران (Kolors و PawanratRung)")
-        print("   � أنواع ملابس متنوعة")
+        app.add_error_handler(error_handler)
+        
+        # رسائل بدء التشغيل
+        logger.info("🎨 Graffiti AI Bot Started Successfully!")
+        print("=" * 50)
+        print("🎨 GRAFFITI AI BOT")
+        print("=" * 50)
+        print("✅ البوت يعمل الآن!")
+        print("🔥 Graffiti G1 Fast - نموذج سريع")
+        print("🚀 Graffiti G1 Pro - نموذج متقدم")
+        print("⚡ تجربة ملابس افتراضية بالذكاء الاصطناعي")
+        print("🛑 اضغط Ctrl+C للإيقاف")
+        print("=" * 50)
         
         # تشغيل البوت
-        application.run_polling(drop_pending_updates=True)
+        app.run_polling(drop_pending_updates=True)
         
     except Exception as e:
-        logger.error(f"خطأ في تشغيل البوت: {e}")
+        logger.error(f"❌ خطأ في تشغيل البوت: {e}")
         print(f"❌ خطأ في تشغيل البوت: {e}")
 
 if __name__ == '__main__':
