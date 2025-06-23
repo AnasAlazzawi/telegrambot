@@ -214,8 +214,7 @@ class GraffitiAI:
             # إنشاء عميل توليد الصور
             client = Client("black-forest-labs/FLUX.1-dev")
             logger.info("✅ تم الاتصال بمولد الصور Graffiti G1-Image Generator")
-            
-            # توليد الصورة
+              # توليد الصورة
             result = client.predict(
                 prompt=prompt,
                 seed=0,
@@ -229,18 +228,63 @@ class GraffitiAI:
             
             if result:
                 logger.info("✅ تم توليد الصورة بنجاح")
-                # إذا كان النتيجة URL، نحتاج إلى تحميل الصورة
-                if isinstance(result, str) and result.startswith('http'):
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(result) as response:
-                            if response.status == 200:
-                                image_data = await response.read()
+                
+                # التعامل مع أنواع مختلفة من النتائج
+                if isinstance(result, str):
+                    # إذا كان النتيجة URL
+                    if result.startswith('http'):
+                        try:
+                            async with aiohttp.ClientSession() as session:
+                                async with session.get(result) as response:
+                                    if response.status == 200:
+                                        image_data = await response.read()
+                                        return BytesIO(image_data), "✅ تم توليد الصورة بنجاح!"
+                                    else:
+                                        return None, "❌ فشل في تحميل الصورة المولدة"
+                        except Exception as download_error:
+                            logger.error(f"❌ خطأ في تحميل الصورة من URL: {download_error}")
+                            return None, "❌ فشل في تحميل الصورة المولدة"
+                    
+                    # إذا كان النتيجة مسار ملف محلي
+                    elif os.path.exists(result):
+                        try:
+                            with open(result, 'rb') as f:
+                                image_data = f.read()
+                            return BytesIO(image_data), "✅ تم توليد الصورة بنجاح!"
+                        except Exception as file_error:
+                            logger.error(f"❌ خطأ في قراءة الملف: {file_error}")
+                            return None, "❌ فشل في قراءة الصورة المولدة"
+                
+                # إذا كان النتيجة قائمة (multiple outputs)
+                elif isinstance(result, (list, tuple)) and len(result) > 0:
+                    # أخذ أول نتيجة
+                    first_result = result[0]
+                    if isinstance(first_result, str):
+                        if first_result.startswith('http'):
+                            try:
+                                async with aiohttp.ClientSession() as session:
+                                    async with session.get(first_result) as response:
+                                        if response.status == 200:
+                                            image_data = await response.read()
+                                            return BytesIO(image_data), "✅ تم توليد الصورة بنجاح!"
+                            except Exception as download_error:
+                                logger.error(f"❌ خطأ في تحميل الصورة من URL: {download_error}")
+                        elif os.path.exists(first_result):
+                            try:
+                                with open(first_result, 'rb') as f:
+                                    image_data = f.read()
                                 return BytesIO(image_data), "✅ تم توليد الصورة بنجاح!"
-                            else:
-                                return None, "❌ فشل في تحميل الصورة المولدة"
+                            except Exception as file_error:
+                                logger.error(f"❌ خطأ في قراءة الملف: {file_error}")
+                    else:
+                        # قد يكون ملف مباشر
+                        return first_result, "✅ تم توليد الصورة بنجاح!"
+                
+                # محاولة أخيرة - إذا كان النتيجة ملف مباشر
                 else:
-                    # إذا كان النتيجة ملف مباشر
                     return result, "✅ تم توليد الصورة بنجاح!"
+                    
+                return None, "❌ تعذر معالجة الصورة المولدة"
             else:
                 return None, "❌ لم يتم توليد الصورة"
                 
@@ -699,8 +743,7 @@ Graffiti AI هو بوت ذكي متطور يستخدم أحدث تقنيات ا�
             "✨ نستخدم تقنية FLUX.1-dev المتطورة",
             parse_mode='HTML'
         )
-        
-        # توليد الصورة
+          # توليد الصورة
         result, status = await GraffitiAI.generate_image(prompt)
         
         await processing_msg.delete()
@@ -712,17 +755,28 @@ Graffiti AI هو بوت ذكي متطور يستخدم أحدث تقنيات ا�
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await context.bot.send_photo(
-                chat_id=update.effective_chat.id,
-                photo=result,
-                caption=f"🖼️ <b>Graffiti G1-Image Generator</b>\n\n"
-                       f"✨ {status}\n"
-                       f"📝 الوصف: {prompt}\n"
-                       f"🤖 النموذج: FLUX.1-dev\n\n"
-                       f"🎨 تم إنشاء هذه الصورة بتقنية الذكاء الاصطناعي المتطورة!",
-                parse_mode='HTML',
-                reply_markup=reply_markup
-            )
+            try:
+                await context.bot.send_photo(
+                    chat_id=update.effective_chat.id,
+                    photo=result,
+                    caption=f"🖼️ <b>Graffiti G1-Image Generator</b>\n\n"
+                           f"✨ {status}\n"
+                           f"📝 الوصف: {prompt}\n"
+                           f"🤖 النموذج: FLUX.1-dev\n\n"
+                           f"🎨 تم إنشاء هذه الصورة بتقنية الذكاء الاصطناعي المتطورة!",
+                    parse_mode='HTML',
+                    reply_markup=reply_markup
+                )
+            except Exception as send_error:
+                logger.error(f"❌ خطأ في إرسال الصورة عبر تليجرام: {send_error}")
+                # محاولة إرسال رسالة نصية بدلاً من ذلك
+                await update.message.reply_text(
+                    f"❌ تم توليد الصورة بنجاح ولكن فشل في إرسالها عبر تليجرام\n\n"
+                    f"📝 الوصف: {prompt}\n"
+                    f"🔧 خطأ تقني: {str(send_error)}\n\n"
+                    "💡 حاول مرة أخرى أو جرب وصفاً مختلفاً",
+                    reply_markup=reply_markup
+                )
         else:
             keyboard = [
                 [InlineKeyboardButton("🔄 حاول مرة أخرى", callback_data="start_image_gen")],
