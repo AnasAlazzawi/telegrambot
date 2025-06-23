@@ -1,4 +1,6 @@
-gradio
+python-telegram-bot
 gradio_client
 Pillow
-requests
+python-dotenv
+aiohttp
+asyncio
