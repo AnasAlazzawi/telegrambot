@@ -65,6 +65,12 @@ AI_MODELS = {
         "client_id": "PawanratRung/virtual-try-on",
         "api_endpoint": "/virtual_tryon",
         "description": "نموذج متقدم مع خيارات متنوعة للملابس"
+    },
+    "g1_image": {
+        "name": "Graffiti G1-Image Generator",
+        "client_id": "black-forest-labs/FLUX.1-dev",
+        "api_endpoint": "/infer",
+        "description": "مولد صور ذكي بالذكاء الاصطناعي"
     }
 }
 
@@ -196,11 +202,40 @@ class GraffitiAI:
             if result:
                 return result, "✅ تم إنتاج النتيجة بنجاح!"
             else:
-                return None, "❌ لم يتم إنتاج نتيجة"
-                
+                return None, "❌ لم يتم إنتاج نتيجة"                
         except Exception as e:
             logger.error(f"❌ خطأ في معالجة تجربة الملابس: {e}")
             return None, f"❌ خطأ: {str(e)}"
+    
+    @staticmethod
+    async def generate_image(prompt: str, width: int = 1024, height: int = 1024):
+        """توليد صورة باستخدام الذكاء الاصطناعي"""
+        try:
+            # إنشاء عميل توليد الصور
+            client = Client("black-forest-labs/FLUX.1-dev")
+            logger.info("✅ تم الاتصال بمولد الصور Graffiti G1-Image Generator")
+            
+            # توليد الصورة
+            result = client.predict(
+                prompt=prompt,
+                seed=0,
+                randomize_seed=True,
+                width=width,
+                height=height,
+                guidance_scale=3.5,
+                num_inference_steps=28,
+                api_name="/infer"
+            )
+            
+            if result:
+                logger.info("✅ تم توليد الصورة بنجاح")
+                return result, "✅ تم توليد الصورة بنجاح!"
+            else:
+                return None, "❌ لم يتم توليد الصورة"
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في توليد الصورة: {e}")
+            return None, f"❌ خطأ في توليد الصورة: {str(e)}"
 
 class TelegramHandlers:
     """معالجات رسائل تليجرام"""
@@ -212,10 +247,10 @@ class TelegramHandlers:
         user_id = user.id
         
         # إعادة تعيين جلسة المستخدم
-        user_sessions[user_id] = {}
-        
+        user_sessions[user_id] = {}        
         keyboard = [
             [InlineKeyboardButton("🎨 تجربة الملابس الافتراضية", callback_data="start_tryon")],
+            [InlineKeyboardButton("🖼️ مولد الصور الذكي", callback_data="start_image_gen")],
             [InlineKeyboardButton("ℹ️ حول Graffiti AI", callback_data="about")],
             [InlineKeyboardButton("🆘 المساعدة", callback_data="help")]
         ]
@@ -223,11 +258,12 @@ class TelegramHandlers:
         
         welcome_text = f"""🎨 <b>مرحباً {user.mention_html()}!</b>
 
-أنا <b>Graffiti AI</b> - بوت ذكي متطور لتجربة الملابس الافتراضية 🤖
+أنا <b>Graffiti AI</b> - بوت ذكي متطور لتجربة الملابس الافتراضية وتوليد الصور 🤖
 
 ✨ <b>الميزات المتاحة:</b>
 🔥 تجربة ملابس واقعية باستخدام AI
-🚀 نموذجان متطوران للاختيار
+🖼️ توليد صور إبداعية بالذكاء الاصطناعي
+🚀 نماذج متطورة متعددة للاختيار
 🎯 دعم أنواع ملابس متنوعة
 ⚡ معالجة سريعة وعالية الجودة
 
@@ -252,22 +288,28 @@ class TelegramHandlers:
         help_text = """
 🆘 <b>مساعدة Graffiti AI</b>
 
-<b>🎯 كيفية الاستخدام:</b>
+<b>🎯 كيفية استخدام تجربة الملابس:</b>
 1️⃣ اضغط "تجربة الملابس الافتراضية"
 2️⃣ اختر النموذج المناسب
 3️⃣ ارفع صورة الشخص
 4️⃣ ارفع صورة الملابس
 5️⃣ احصل على النتيجة!
 
+<b>🖼️ كيفية استخدام مولد الصور:</b>
+1️⃣ اضغط "مولد الصور الذكي"
+2️⃣ اكتب وصف الصورة المطلوبة
+3️⃣ انتظر النتيجة (30-60 ثانية)
+
 <b>🤖 النماذج المتاحة:</b>
 🔥 <b>Graffiti G1 Fast:</b> سريع ومحسن
 🚀 <b>Graffiti G1 Pro:</b> متقدم مع خيارات أكثر
+🖼️ <b>Graffiti G1-Image Generator:</b> توليد صور بـ FLUX.1-dev
 
 <b>💡 نصائح للنتائج الأفضل:</b>
 • استخدم صور واضحة وعالية الجودة
 • تأكد من إضاءة جيدة في الصور
-• اختر خلفيات بسيطة
-• تجنب الصور الضبابية
+• اختر خلفيات بسيطة للملابس
+• استخدم أوصافاً مفصلة للصور
 
 <b>📞 الأوامر المتاحة:</b>
 /start - القائمة الرئيسية
@@ -277,6 +319,7 @@ class TelegramHandlers:
         
         keyboard = [
             [InlineKeyboardButton("🎨 تجربة الملابس", callback_data="start_tryon")],
+            [InlineKeyboardButton("🖼️ مولد الصور", callback_data="start_image_gen")],
             [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -295,24 +338,32 @@ class TelegramHandlers:
 🎨 <b>Graffiti AI</b>
 
 <b>🤖 حول البوت:</b>
-Graffiti AI هو بوت ذكي متطور يستخدم أحدث تقنيات الذكاء الاصطناعي لتجربة الملابس الافتراضية
+Graffiti AI هو بوت ذكي متطور يستخدم أحدث تقنيات الذكاء الاصطناعي لتجربة الملابس الافتراضية وتوليد الصور الإبداعية
 
 <b>⚡ التقنيات المستخدمة:</b>
 • نماذج AI متطورة للرؤية الحاسوبية
+• تقنية FLUX.1-dev لتوليد الصور
 • معالجة الصور بالذكاء الاصطناعي
-• خوارزميات التعلم العميق
-• واجهة تليجرام تفاعلية
+• خوارزميات التعلم العميق المتطورة
+• واجهة تليجرام تفاعلية وسهلة
 
-<b>🔥 النماذج:</b>
+<b>🔥 النماذج المتاحة:</b>
 • <b>Graffiti G1 Fast:</b> نموذج محسن للسرعة
 • <b>Graffiti G1 Pro:</b> نموذج متقدم للدقة
+• <b>Graffiti G1-Image Generator:</b> مولد صور بـ FLUX.1-dev
 
-<b>✨ الإصدار:</b> 2.0
+<b>✨ الميزات الجديدة:</b>
+🖼️ توليد صور إبداعية من الوصف النصي
+🎨 تجربة ملابس افتراضية واقعية
+🚀 معالجة سريعة وعالية الجودة
+
+<b>✨ الإصدار:</b> 2.1
 <b>🔧 المطور:</b> Graffiti AI Team
         """
         
         keyboard = [
-            [InlineKeyboardButton("🎨 جرب الآن", callback_data="start_tryon")],
+            [InlineKeyboardButton("🎨 تجربة الملابس", callback_data="start_tryon")],
+            [InlineKeyboardButton("🖼️ مولد الصور", callback_data="start_image_gen")],
             [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)        
@@ -344,6 +395,9 @@ Graffiti AI هو بوت ذكي متطور يستخدم أحدث تقنيات ا�
                 
             elif data == "start_tryon":
                 await TelegramHandlers.start_virtual_tryon(update, context)
+                
+            elif data == "start_image_gen":
+                await TelegramHandlers.start_image_generation(update, context)
                 
             elif data.startswith("select_model_"):
                 model_key = data.replace("select_model_", "")
@@ -559,16 +613,123 @@ Graffiti AI هو بوت ذكي متطور يستخدم أحدث تقنيات ا�
                 
                 # إعادة تعيين الجلسة
                 user_sessions[user_id] = {}
-            else:
-                await update.message.reply_text("❌ فشل في معالجة صورة الملابس. حاول مرة أخرى.")
+            else:                await update.message.reply_text("❌ فشل في معالجة صورة الملابس. حاول مرة أخرى.")
     
     @staticmethod
     async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """معالجة الرسائل النصية"""
+        user_id = update.effective_user.id
+        
+        # التحقق من وضع توليد الصور
+        if user_id in user_sessions and user_sessions[user_id].get("mode") == "image_generation":
+            if user_sessions[user_id].get("step") == "waiting_prompt":
+                prompt = update.message.text
+                await TelegramHandlers.handle_image_generation_text(update, context, prompt)
+                return
+        
+        # الرد الافتراضي
         await update.message.reply_text(
             "🎨 مرحباً! أنا Graffiti AI\n\n"
-            "استخدم /start لبدء تجربة الملابس الافتراضية ✨"
+            "استخدم /start لبدء تجربة الملابس الافتراضية أو توليد الصور ✨"
         )
+    
+    @staticmethod
+    async def start_image_generation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """بدء توليد الصور بالذكاء الاصطناعي"""
+        user_id = update.callback_query.from_user.id
+        
+        user_sessions[user_id] = {
+            "mode": "image_generation",
+            "step": "waiting_prompt"
+        }
+        
+        keyboard = [
+            [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data="main_menu")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        prompt_text = """
+🖼️ <b>Graffiti G1-Image Generator</b>
+
+🎨 <b>مولد الصور الذكي بالذكاء الاصطناعي</b>
+
+✨ <b>الميزات:</b>
+• تقنية FLUX.1-dev المتطورة
+• صور عالية الجودة (1024x1024)
+• دعم الوصف باللغة العربية والإنجليزية
+• معالجة سريعة ومتطورة
+
+📝 <b>كيفية الاستخدام:</b>
+أرسل وصفاً تفصيلياً للصورة التي تريد إنشاءها
+
+💡 <b>أمثلة على الأوصاف:</b>
+• "قطة جميلة في الحديقة"
+• "منظر طبيعي خلاب عند الغروب"
+• "سيارة رياضية حمراء في المدينة"
+• "A majestic lion in the savanna"
+
+✍️ <b>اكتب وصف الصورة التي تريد إنشاءها:</b>
+        """
+        
+        await update.callback_query.edit_message_text(
+            prompt_text, parse_mode='HTML', reply_markup=reply_markup
+        )
+    
+    @staticmethod
+    async def handle_image_generation_text(update: Update, context: ContextTypes.DEFAULT_TYPE, prompt: str):
+        """معالجة طلب توليد الصورة"""
+        user_id = update.effective_user.id
+        
+        # إرسال رسالة المعالجة
+        processing_msg = await update.message.reply_text(
+            "🖼️ <b>Graffiti G1-Image Generator يعمل...</b>\n\n"
+            "🎨 جاري إنشاء صورتك الفنية\n"
+            "⏳ هذا قد يستغرق 30-60 ثانية\n"
+            "✨ نستخدم تقنية FLUX.1-dev المتطورة",
+            parse_mode='HTML'
+        )
+        
+        # توليد الصورة
+        result, status = await GraffitiAI.generate_image(prompt)
+        
+        await processing_msg.delete()
+        
+        if result:
+            keyboard = [
+                [InlineKeyboardButton("🖼️ إنشاء صورة أخرى", callback_data="start_image_gen")],
+                [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await context.bot.send_photo(
+                chat_id=update.effective_chat.id,
+                photo=result,
+                caption=f"🖼️ <b>Graffiti G1-Image Generator</b>\n\n"
+                       f"✨ {status}\n"
+                       f"📝 الوصف: {prompt}\n"
+                       f"🤖 النموذج: FLUX.1-dev\n\n"
+                       f"🎨 تم إنشاء هذه الصورة بتقنية الذكاء الاصطناعي المتطورة!",
+                parse_mode='HTML',
+                reply_markup=reply_markup
+            )
+        else:
+            keyboard = [
+                [InlineKeyboardButton("🔄 حاول مرة أخرى", callback_data="start_image_gen")],
+                [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.message.reply_text(
+                f"❌ {status}\n\n"
+                "💡 نصائح لنتائج أفضل:\n"
+                "• استخدم وصفاً أكثر تفصيلاً\n"
+                "• تجنب الكلمات المعقدة\n"
+                "• جرب وصفاً مختلفاً",
+                reply_markup=reply_markup
+            )
+        
+        # إعادة تعيين الجلسة
+        user_sessions[user_id] = {}
 
 def main():
     """تشغيل البوت"""
@@ -599,7 +760,9 @@ def main():
         print("✅ البوت يعمل الآن!")
         print("🔥 Graffiti G1 Fast - نموذج سريع")
         print("🚀 Graffiti G1 Pro - نموذج متقدم")
+        print("🖼️ Graffiti G1-Image Generator - مولد صور ذكي")
         print("⚡ تجربة ملابس افتراضية بالذكاء الاصطناعي")
+        print("🎨 توليد صور إبداعية بتقنية FLUX.1-dev")
         print("🛑 اضغط Ctrl+C للإيقاف")
         print("=" * 50)
         
