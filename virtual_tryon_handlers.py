@@ -142,8 +142,7 @@ class VirtualTryOnHandlers:
                 await update.message.reply_text(
                     "✅ تم حفظ صورة الشخص!\n\n"
                     "👕 الآن أرسل صورة الملابس التي تريد تجربتها\n\n"
-                    "💡 <b>نصائح للملابس:</b>\n"
-                    "• خلفية بيضاء أو بسيطة\n"
+                    "💡 <b>نصائح للملابس:</b>\n"                    "• خلفية بيضاء أو بسيطة\n"
                     "• ملابس واضحة ومفصلة\n"
                     "• تجنب الظلال القوية",
                     parse_mode='HTML'
@@ -159,18 +158,21 @@ class VirtualTryOnHandlers:
                 
                 processing_msg = await update.message.reply_text(
                     "⚡ <b>Graffiti AI يعمل...</b>\n\n"
-                    "🔄 جاري معالجة طلبك\n"
-                    "⏳ هذا قد يستغرق بضع ثوانٍ",
+                    "🔄 جاري معالجة طلبك باستخدام الذكاء الاصطناعي\n"
+                    "⏳ هذا قد يستغرق 30-60 ثانية\n"
+                    "🤖 النموذج المستخدم: " + AI_MODELS[session["model"]]["name"],
                     parse_mode='HTML'
                 )
                 
                 # معالجة تجربة الملابس
+                logger.info(f"🎨 بدء معالجة تجربة الملابس للمستخدم {user_id}")
                 result, status = await VirtualTryOnService.process_virtual_tryon(
                     session["person_image"],
                     session["garment_image"],
                     session["model"],
                     session.get("garment_type", "upper_body")
                 )
+                logger.info(f"📊 نتيجة المعالجة: {result is not None} - {status}")
                 
                 await processing_msg.delete()
                 

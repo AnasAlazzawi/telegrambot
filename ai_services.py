@@ -161,30 +161,35 @@ class VirtualTryOnService:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as garment_file:
                 garment_img.save(garment_file.name, format='PNG')
                 garment_path = garment_file.name
-            
-            # تشغيل النموذج المناسب مع إعادة المحاولة
+              # تشغيل النموذج المناسب مع إعادة المحاولة
             model_info = AI_MODELS[model_key]
             result = None
             
             try:
                 if model_key == "g1_fast":
+                    logger.info("🔄 تشغيل G1 Fast...")
                     result = client.predict(
                         person_image=handle_file(person_path),
                         clothing_image=handle_file(garment_path),
                         api_name=model_info["api_endpoint"]
                     )
+                    logger.info(f"📊 نتيجة G1 Fast: {type(result)} - {result}")
                 else:  # g1_pro
+                    logger.info("🔄 تشغيل G1 Pro...")
                     result = client.predict(
                         handle_file(person_path),
                         handle_file(garment_path),
                         garment_type,
                         api_name=model_info["api_endpoint"]
                     )
+                    logger.info(f"📊 نتيجة G1 Pro: {type(result)} - {result}")
             except Exception as api_error:
-                logger.error(f"❌ خطأ في API: {api_error}")
-                # محاولة مع النموذج البديل
+                logger.error(f"❌ خطأ في API: {api_error}")                # محاولة مع النموذج البديل
+                logger.warning("🔄 محاولة النموذج البديل...")
                 try:
                     if model_key == "g1_fast":
+                        # جرب النموذج البديل G1 Pro
+                        logger.info("🔄 تجربة النموذج البديل G1 Pro...")
                         alt_client = Client("PawanratRung/virtual-try-on")
                         result = alt_client.predict(
                             handle_file(person_path),
@@ -192,27 +197,77 @@ class VirtualTryOnService:
                             "upper_body",
                             api_name="/virtual_tryon"
                         )
+                        logger.info(f"📊 نتيجة النموذج البديل: {type(result)} - {result}")
                     else:
+                        # جرب النموذج البديل G1 Fast
+                        logger.info("🔄 تجربة النموذج البديل G1 Fast...")
                         alt_client = Client("krsatyam7/Virtual_Clothing_Try-On-new")
                         result = alt_client.predict(
                             person_image=handle_file(person_path),
                             clothing_image=handle_file(garment_path),
                             api_name="/swap_clothing"
                         )
+                        logger.info(f"📊 نتيجة النموذج البديل: {type(result)} - {result}")
                 except Exception as fallback_error:
                     logger.error(f"❌ فشل في النموذج البديل: {fallback_error}")
+                    
+                    # تنظيف الملفات قبل الإرجاع
+                    try:
+                        os.unlink(person_path)
+                        os.unlink(garment_path)
+                    except:
+                        pass
+                    
                     return None, "❌ جميع النماذج غير متاحة حالياً، حاول لاحقاً"
-            
-            # تنظيف الملفات المؤقتة
+              # تنظيف الملفات المؤقتة
             try:
                 os.unlink(person_path)
                 os.unlink(garment_path)
             except:
                 pass
             
-            if result:
-                return result, "✅ تم إنتاج النتيجة بنجاح!"
+            # معالجة النتيجة بشكل شامل
+            logger.info(f"🔍 فحص النتيجة: {type(result)}")
+            
+            if result is not None:
+                logger.info(f"✅ تم الحصول على نتيجة من النوع: {type(result)}")
+                
+                # إذا كانت النتيجة string (مسار ملف)
+                if isinstance(result, str):
+                    logger.info(f"📁 مسار الملف: {result}")
+                    if os.path.exists(result):
+                        logger.info("✅ الملف موجود، سيتم إرجاعه")
+                        return result, "✅ تم إنتاج النتيجة بنجاح!"
+                    else:
+                        logger.warning(f"⚠️ الملف غير موجود: {result}")
+                
+                # إذا كانت النتيجة قائمة
+                elif isinstance(result, (list, tuple)):
+                    logger.info(f"📋 قائمة بـ {len(result)} عنصر")
+                    if len(result) > 0:
+                        first_item = result[0]
+                        logger.info(f"🔍 العنصر الأول: {type(first_item)} - {first_item}")
+                        
+                        if isinstance(first_item, str) and os.path.exists(first_item):
+                            logger.info("✅ العنصر الأول هو مسار ملف صحيح")
+                            return first_item, "✅ تم إنتاج النتيجة بنجاح!"
+                        else:
+                            # جرب العناصر الأخرى
+                            for i, item in enumerate(result):
+                                logger.info(f"🔍 العنصر {i}: {type(item)} - {item}")
+                                if isinstance(item, str) and os.path.exists(item):
+                                    logger.info(f"✅ العنصر {i} هو مسار ملف صحيح")
+                                    return item, "✅ تم إنتاج النتيجة بنجاح!"
+                
+                # إذا كانت النتيجة كائن آخر، جرب إرجاعها مباشرة
+                else:
+                    logger.info("🔄 محاولة إرجاع النتيجة كما هي")
+                    return result, "✅ تم إنتاج النتيجة بنجاح!"
+                
+                logger.warning("⚠️ لم يتم العثور على ملف صالح في النتيجة")
+                return None, "❌ النتيجة لا تحتوي على ملف صالح"
             else:
+                logger.error("❌ النتيجة فارغة (None)")
                 return None, "❌ لم يتم إنتاج نتيجة"
                 
         except Exception as e:

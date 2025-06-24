@@ -3,6 +3,6 @@
     "builder": "nixpacks"
   },
   "deploy": {
-    "startCommand": "python main.py"
+    "startCommand": "python reset_bot.py && python main.py"
   }
 }

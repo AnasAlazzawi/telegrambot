@@ -39,6 +39,15 @@ def setup_handlers(app: Application):
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     """معالج الأخطاء العامة"""
     logger.error("Exception while handling an update:", exc_info=context.error)
+    
+    # تجاهل أخطاء الشبكة المؤقتة
+    error_message = str(context.error)
+    if "409" in error_message or "Conflict" in error_message:
+        logger.warning("⚠️ تم اكتشاف تضارب في API - سيتم إعادة المحاولة تلقائياً")
+        return
+    elif "timeout" in error_message.lower() or "network" in error_message.lower():
+        logger.warning("⚠️ مشكلة مؤقتة في الشبكة - سيتم إعادة المحاولة")
+        return
 
 
 def print_startup_messages():
@@ -59,8 +68,11 @@ def print_startup_messages():
 def main():
     """تشغيل البوت"""
     try:
-        # إنشاء التطبيق
-        app = Application.builder().token(TELEGRAM_TOKEN).build()
+        # إنشاء التطبيق مع إعدادات محسنة
+        app = Application.builder()\
+            .token(TELEGRAM_TOKEN)\
+            .concurrent_updates(True)\
+            .build()
         
         # إعداد المعالجات
         setup_handlers(app)
@@ -72,8 +84,13 @@ def main():
         logger.info("🎨 Graffiti AI Bot Started Successfully!")
         print_startup_messages()
         
-        # تشغيل البوت
-        app.run_polling(drop_pending_updates=True)
+        # تشغيل البوت مع إعدادات محسنة
+        app.run_polling(
+            drop_pending_updates=True,
+            allowed_updates=["message", "callback_query"],
+            timeout=60,
+            poll_interval=2.0
+        )
         
     except Exception as e:
         logger.error(f"❌ خطأ في تشغيل البوت: {e}")
