@@ -10,12 +10,14 @@ import logging
 import asyncio
 import tempfile
 import aiohttp
+import re
 from io import BytesIO
 from PIL import Image
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from dotenv import load_dotenv
 from gradio_client import Client
+import google.generativeai as genai
 
 # تحميل متغيرات البيئة
 load_dotenv()
@@ -48,9 +50,31 @@ except Exception as e:
 
 # الحصول على توكن التليجرام
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+# الحصول على مفتاح Gemini AI
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 if not TELEGRAM_TOKEN:
     raise ValueError("❌ TELEGRAM_TOKEN مطلوب في ملف .env")
+
+if not GEMINI_API_KEY:
+    raise ValueError("❌ GEMINI_API_KEY مطلوب في ملف .env")
+
+# إعداد Gemini AI
+genai.configure(api_key=GEMINI_API_KEY)
+
+# إنشاء نموذج Gemini 2.0 Flash
+try:
+    gemini_model = genai.GenerativeModel('gemini-2.0-flash-exp')
+    logger.info("✅ تم الاتصال بنموذج Gemini 2.0 Flash بنجاح")
+except Exception as e:
+    logger.error(f"❌ خطأ في إعداد Gemini: {e}")
+    # Fallback إلى نموذج آخر
+    try:
+        gemini_model = genai.GenerativeModel('gemini-pro')
+        logger.info("✅ تم الاتصال بنموذج Gemini Pro البديل")
+    except Exception as e2:
+        logger.error(f"❌ فشل في إعداد جميع نماذج Gemini: {e2}")
+        gemini_model = None
 
 # نماذج الذكاء الاصطناعي المتاحة
 AI_MODELS = {
@@ -113,6 +137,235 @@ class GraffitiAI:
             except Exception as e2:
                 logger.error(f"❌ فشل في الاتصال بالنموذج البديل: {e2}")
             return None
+    
+    @staticmethod
+    async def download_telegram_image(file_id: str, bot):
+        """تحميل وتحويل صورة من تليجرام إلى PIL Image"""
+        try:
+            file = await bot.get_file(file_id)
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(file.file_path) as response:
+                    if response.status == 200:
+                        image_data = await response.read()
+                        return Image.open(BytesIO(image_data))
+            return None
+        except Exception as e:
+            logger.error(f"❌ خطأ في تحميل الصورة: {e}")
+            return None
+    
+    @staticmethod
+    async def process_virtual_tryon(person_img, garment_img, model_key, garment_type="upper_body"):
+        """معالجة طلب تجربة الملابس الافتراضية"""
+        try:
+            # إنشاء عميل AI
+            client = await GraffitiAI.create_ai_client(model_key)
+            if not client:
+                return None, "❌ فشل في الاتصال بخدمة الذكاء الاصطناعي"
+            
+            # حفظ الصور مؤقتاً
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as person_file:
+                person_img.save(person_file.name, format='PNG')
+                person_path = person_file.name
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as garment_file:
+                garment_img.save(garment_file.name, format='PNG')
+                garment_path = garment_file.name
+              # تشغيل النموذج المناسب مع إعادة المحاولة
+            model_info = AI_MODELS[model_key]
+            result = None
+            
+            try:
+                if model_key == "g1_fast":
+                    # النموذج الأول: krsatyam7/Virtual_Clothing_Try-On-new
+                    result = client.predict(
+                        person_image=handle_file(person_path),
+                        clothing_image=handle_file(garment_path),
+                        api_name=model_info["api_endpoint"]
+                    )
+                else:  # g1_pro
+                    # النموذج الثاني: PawanratRung/virtual-try-on
+                    result = client.predict(
+                        handle_file(person_path),
+                        handle_file(garment_path),
+                        garment_type,
+                        api_name=model_info["api_endpoint"]
+                    )
+            except Exception as api_error:
+                logger.error(f"❌ خطأ في API: {api_error}")
+                # محاولة مع النموذج البديل
+                try:
+                    if model_key == "g1_fast":
+                        # جرب النموذج البديل G1 Pro
+                        alt_client = Client("PawanratRung/virtual-try-on")
+                        result = alt_client.predict(
+                            handle_file(person_path),
+                            handle_file(garment_path),
+                            "upper_body",
+                            api_name="/virtual_tryon"
+                        )
+                    else:
+                        # جرب النموذج البديل G1 Fast
+                        alt_client = Client("krsatyam7/Virtual_Clothing_Try-On-new")
+                        result = alt_client.predict(
+                            person_image=handle_file(person_path),
+                            clothing_image=handle_file(garment_path),
+                            api_name="/swap_clothing"
+                        )
+                except Exception as fallback_error:
+                    logger.error(f"❌ فشل في النموذج البديل: {fallback_error}")
+                    return None, "❌ جميع النماذج غير متاحة حالياً، حاول لاحقاً"
+            
+            # تنظيف الملفات المؤقتة
+            try:
+                os.unlink(person_path)
+                os.unlink(garment_path)
+            except:
+                pass
+            
+            if result:
+                return result, "✅ تم إنتاج النتيجة بنجاح!"
+            else:
+                return None, "❌ لم يتم إنتاج نتيجة"                
+        except Exception as e:
+            logger.error(f"❌ خطأ في معالجة تجربة الملابس: {e}")
+            return None, f"❌ خطأ: {str(e)}"
+    
+    @staticmethod
+    async def generate_image(prompt: str, width: int = 1024, height: int = 1024):
+        """توليد صورة باستخدام الذكاء الاصطناعي"""
+        try:
+            # إنشاء عميل توليد الصور
+            client = Client("black-forest-labs/FLUX.1-dev")
+            logger.info("✅ تم الاتصال بمولد الصور Graffiti G1-Image Generator")
+              # توليد الصورة
+            result = client.predict(
+                prompt=prompt,
+                seed=0,
+                randomize_seed=True,
+                width=width,
+                height=height,
+                guidance_scale=3.5,
+                num_inference_steps=28,
+                api_name="/infer"
+            )
+            
+            if result:
+                logger.info("✅ تم توليد الصورة بنجاح")
+                
+                # التعامل مع أنواع مختلفة من النتائج
+                if isinstance(result, str):
+                    # إذا كان النتيجة URL
+                    if result.startswith('http'):
+                        try:
+                            async with aiohttp.ClientSession() as session:
+                                async with session.get(result) as response:
+                                    if response.status == 200:
+                                        image_data = await response.read()
+                                        return BytesIO(image_data), "✅ تم توليد الصورة بنجاح!"
+                                    else:
+                                        return None, "❌ فشل في تحميل الصورة المولدة"
+                        except Exception as download_error:
+                            logger.error(f"❌ خطأ في تحميل الصورة من URL: {download_error}")
+                            return None, "❌ فشل في تحميل الصورة المولدة"
+                    
+                    # إذا كان النتيجة مسار ملف محلي
+                    elif os.path.exists(result):
+                        try:
+                            with open(result, 'rb') as f:
+                                image_data = f.read()
+                            return BytesIO(image_data), "✅ تم توليد الصورة بنجاح!"
+                        except Exception as file_error:
+                            logger.error(f"❌ خطأ في قراءة الملف: {file_error}")
+                            return None, "❌ فشل في قراءة الصورة المولدة"
+                
+                # إذا كان النتيجة قائمة (multiple outputs)
+                elif isinstance(result, (list, tuple)) and len(result) > 0:
+                    # أخذ أول نتيجة
+                    first_result = result[0]
+                    if isinstance(first_result, str):
+                        if first_result.startswith('http'):
+                            try:
+                                async with aiohttp.ClientSession() as session:
+                                    async with session.get(first_result) as response:
+                                        if response.status == 200:
+                                            image_data = await response.read()
+                                            return BytesIO(image_data), "✅ تم توليد الصورة بنجاح!"
+                            except Exception as download_error:
+                                logger.error(f"❌ خطأ في تحميل الصورة من URL: {download_error}")
+                        elif os.path.exists(first_result):
+                            try:
+                                with open(first_result, 'rb') as f:
+                                    image_data = f.read()
+                                return BytesIO(image_data), "✅ تم توليد الصورة بنجاح!"
+                            except Exception as file_error:
+                                logger.error(f"❌ خطأ في قراءة الملف: {file_error}")
+                    else:
+                        # قد يكون ملف مباشر
+                        return first_result, "✅ تم توليد الصورة بنجاح!"
+                
+                # محاولة أخيرة - إذا كان النتيجة ملف مباشر
+                else:
+                    return result, "✅ تم توليد الصورة بنجاح!"
+                    
+                return None, "❌ تعذر معالجة الصورة المولدة"
+            else:
+                return None, "❌ لم يتم توليد الصورة"
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في توليد الصورة: {e}")
+            return None, f"❌ خطأ في توليد الصورة: {str(e)}"
+    
+    @staticmethod
+    async def translate_to_english(text: str) -> str:
+        """ترجمة النص من العربية إلى الإنجليزية باستخدام Gemini 2.0 Flash"""
+        try:
+            # التحقق من وجود نموذج Gemini
+            if not gemini_model:
+                logger.warning("⚠️ نموذج Gemini غير متاح، سيتم استخدام النص كما هو")
+                return text
+            
+            # التحقق إذا كان النص يحتوي على أحرف عربية
+            arabic_pattern = re.compile(r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]')
+            if not arabic_pattern.search(text):
+                # النص باللغة الإنجليزية بالفعل
+                return text
+            
+            # إنشاء prompt للترجمة
+            translation_prompt = f"""
+You are a professional translator. Translate the following Arabic text to English for AI image generation.
+Make the translation natural, descriptive, and suitable for creating images.
+Keep it concise but detailed enough for good image generation.
+
+Arabic Text: {text}
+
+Instructions:
+- Translate accurately to English
+- Make it descriptive and visual
+- Use simple, clear language
+- Focus on visual elements
+- Return ONLY the English translation, nothing else
+
+English Translation:"""
+            
+            # إرسال الطلب لـ Gemini
+            response = await asyncio.to_thread(
+                gemini_model.generate_content, 
+                translation_prompt
+            )
+            
+            if response and response.text:
+                translated_text = response.text.strip()
+                logger.info(f"✅ تم ترجمة النص: '{text}' -> '{translated_text}'")
+                return translated_text
+            else:
+                logger.warning("⚠️ لم يتم الحصول على ترجمة، سيتم استخدام النص الأصلي")
+                return text
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في ترجمة النص: {e}")
+            # في حالة الخطأ، استخدم النص الأصلي
+            return text
     
     @staticmethod
     async def download_telegram_image(file_id: str, bot):
@@ -375,8 +628,7 @@ class TelegramHandlers:
         keyboard = [
             [InlineKeyboardButton("🎨 تجربة الملابس", callback_data="start_tryon")],
             [InlineKeyboardButton("🖼️ مولد الصور", callback_data="start_image_gen")],
-            [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")]
-        ]
+            [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu")]        ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         if update.callback_query:
@@ -398,6 +650,7 @@ Graffiti AI هو بوت ذكي متطور يستخدم أحدث تقنيات ا�
 <b>⚡ التقنيات المستخدمة:</b>
 • نماذج AI متطورة للرؤية الحاسوبية
 • تقنية FLUX.1-dev لتوليد الصور
+• Gemini 2.0 Flash للترجمة الذكية
 • معالجة الصور بالذكاء الاصطناعي
 • خوارزميات التعلم العميق المتطورة
 • واجهة تليجرام تفاعلية وسهلة
@@ -405,14 +658,16 @@ Graffiti AI هو بوت ذكي متطور يستخدم أحدث تقنيات ا�
 <b>🔥 النماذج المتاحة:</b>
 • <b>Graffiti G1 Fast:</b> نموذج محسن للسرعة
 • <b>Graffiti G1 Pro:</b> نموذج متقدم للدقة
-• <b>Graffiti G1-Image Generator:</b> مولد صور بـ FLUX.1-dev
+• <b>Graffiti G1-Image Generator:</b> مولد صور بـ FLUX.1-dev + Gemini
 
 <b>✨ الميزات الجديدة:</b>
 🖼️ توليد صور إبداعية من الوصف النصي
+🧠 ترجمة ذكية للنصوص العربية بـ Gemini 2.0 Flash
 🎨 تجربة ملابس افتراضية واقعية
 🚀 معالجة سريعة وعالية الجودة
+🌍 دعم كامل للغة العربية
 
-<b>✨ الإصدار:</b> 2.1
+<b>✨ الإصدار:</b> 2.2
 <b>🔧 المطور:</b> Graffiti AI Team
         """
         
@@ -708,14 +963,18 @@ Graffiti AI هو بوت ذكي متطور يستخدم أحدث تقنيات ا�
 
 🎨 <b>مولد الصور الذكي بالذكاء الاصطناعي</b>
 
-✨ <b>الميزات:</b>
+✨ <b>الميزات الجديدة:</b>
 • تقنية FLUX.1-dev المتطورة
 • صور عالية الجودة (1024x1024)
-• دعم الوصف باللغة العربية والإنجليزية
+• دعم كامل للغة العربية مع ترجمة ذكية
+• ترجمة تلقائية بـ Gemini 2.0 Flash
 • معالجة سريعة ومتطورة
 
 📝 <b>كيفية الاستخدام:</b>
-أرسل وصفاً تفصيلياً للصورة التي تريد إنشاءها
+أرسل وصفاً تفصيلياً للصورة التي تريد إنشاءها بالعربية أو الإنجليزية
+
+🧠 <b>الترجمة الذكية:</b>
+سيتم ترجمة النص العربي تلقائياً إلى الإنجليزية بواسطة Gemini 2.0 Flash لضمان أفضل نتائج
 
 💡 <b>أمثلة على الأوصاف:</b>
 • "قطة جميلة في الحديقة"
@@ -738,13 +997,18 @@ Graffiti AI هو بوت ذكي متطور يستخدم أحدث تقنيات ا�
         # إرسال رسالة المعالجة
         processing_msg = await update.message.reply_text(
             "🖼️ <b>Graffiti G1-Image Generator يعمل...</b>\n\n"
+            "🧠 جاري ترجمة النص بذكاء Gemini 2.0 Flash\n"
             "🎨 جاري إنشاء صورتك الفنية\n"
             "⏳ هذا قد يستغرق 30-60 ثانية\n"
             "✨ نستخدم تقنية FLUX.1-dev المتطورة",
             parse_mode='HTML'
         )
-          # توليد الصورة
-        result, status = await GraffitiAI.generate_image(prompt)
+        
+        # ترجمة النص إلى الإنجليزية باستخدام Gemini
+        english_prompt = await GraffitiAI.translate_to_english(prompt)
+        
+        # توليد الصورة
+        result, status = await GraffitiAI.generate_image(english_prompt)
         
         await processing_msg.delete()
         
@@ -755,15 +1019,26 @@ Graffiti AI هو بوت ذكي متطور يستخدم أحدث تقنيات ا�
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            try:
+            try:                # إعداد caption مع معلومات الترجمة
+                if english_prompt != prompt:
+                    caption = f"🖼️ <b>Graffiti G1-Image Generator</b>\n\n" \
+                             f"✨ {status}\n" \
+                             f"📝 الوصف الأصلي: {prompt}\n" \
+                             f"🔤 مترجم لـ: {english_prompt}\n" \
+                             f"🧠 مترجم بـ: Gemini 2.0 Flash\n" \
+                             f"🤖 النموذج: FLUX.1-dev\n\n" \
+                             f"🎨 تم إنشاء هذه الصورة بتقنية الذكاء الاصطناعي المتطورة!"
+                else:
+                    caption = f"🖼️ <b>Graffiti G1-Image Generator</b>\n\n" \
+                             f"✨ {status}\n" \
+                             f"📝 الوصف: {prompt}\n" \
+                             f"🤖 النموذج: FLUX.1-dev\n\n" \
+                             f"🎨 تم إنشاء هذه الصورة بتقنية الذكاء الاصطناعي المتطورة!"
+                
                 await context.bot.send_photo(
                     chat_id=update.effective_chat.id,
                     photo=result,
-                    caption=f"🖼️ <b>Graffiti G1-Image Generator</b>\n\n"
-                           f"✨ {status}\n"
-                           f"📝 الوصف: {prompt}\n"
-                           f"🤖 النموذج: FLUX.1-dev\n\n"
-                           f"🎨 تم إنشاء هذه الصورة بتقنية الذكاء الاصطناعي المتطورة!",
+                    caption=caption,
                     parse_mode='HTML',
                     reply_markup=reply_markup
                 )
