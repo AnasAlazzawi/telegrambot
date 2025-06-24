@@ -5,11 +5,25 @@
 """
 
 import logging
+import sys
+import os
 from telegram import Update
 from telegram.ext import ContextTypes
-from basic_handlers import BasicHandlers
-from virtual_tryon_handlers import VirtualTryOnHandlers
-from image_handlers import ImageHandlers
+
+# إضافة المجلد الحالي للمسار
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from basic_handlers import BasicHandlers
+    from virtual_tryon_handlers import VirtualTryOnHandlers
+    from image_handlers import ImageHandlers
+except ImportError:
+    import basic_handlers
+    import virtual_tryon_handlers
+    import image_handlers
+    BasicHandlers = basic_handlers.BasicHandlers
+    VirtualTryOnHandlers = virtual_tryon_handlers.VirtualTryOnHandlers
+    ImageHandlers = image_handlers.ImageHandlers
 
 logger = logging.getLogger(__name__)
 

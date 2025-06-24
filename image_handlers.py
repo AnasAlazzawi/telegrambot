@@ -5,10 +5,23 @@
 """
 
 import logging
+import sys
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from session_manager import SessionManager
-from ai_services import AIService, ImageGenerationService
+
+# إضافة المجلد الحالي للمسار
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from session_manager import SessionManager
+    from ai_services import AIService, ImageGenerationService
+except ImportError:
+    import session_manager
+    import ai_services
+    SessionManager = session_manager.SessionManager
+    AIService = ai_services.AIService
+    ImageGenerationService = ai_services.ImageGenerationService
 
 logger = logging.getLogger(__name__)
 

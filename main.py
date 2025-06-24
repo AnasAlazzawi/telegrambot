@@ -8,15 +8,40 @@ Graffiti AI - Smart Telegram Bot for Virtual Try-On
 """
 
 import logging
+import sys
+import os
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
+# إضافة المجلد الحالي للمسار
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 # استيراد الوحدات المحلية
-from config import TELEGRAM_TOKEN, logger
-from basic_handlers import BasicHandlers
-from virtual_tryon_handlers import VirtualTryOnHandlers
-from image_handlers import ImageHandlers
-from callback_handler import CallbackHandler
-from session_manager import SessionManager
+try:
+    from config import TELEGRAM_TOKEN, logger
+    from basic_handlers import BasicHandlers
+    from virtual_tryon_handlers import VirtualTryOnHandlers
+    from image_handlers import ImageHandlers
+    from callback_handler import CallbackHandler
+    from session_manager import SessionManager
+except ImportError as e:
+    print(f"❌ خطأ في الاستيراد: {e}")
+    print("🔍 محاولة الاستيراد المباشر...")
+    
+    # محاولة الاستيراد المباشر
+    import config
+    import basic_handlers
+    import virtual_tryon_handlers
+    import image_handlers
+    import callback_handler
+    import session_manager
+    
+    TELEGRAM_TOKEN = config.TELEGRAM_TOKEN
+    logger = config.logger
+    BasicHandlers = basic_handlers.BasicHandlers
+    VirtualTryOnHandlers = virtual_tryon_handlers.VirtualTryOnHandlers
+    ImageHandlers = image_handlers.ImageHandlers
+    CallbackHandler = callback_handler.CallbackHandler
+    SessionManager = session_manager.SessionManager
 
 def setup_handlers(app: Application):
     """إعداد معالجات البوت"""

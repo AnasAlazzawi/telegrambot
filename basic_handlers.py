@@ -5,10 +5,22 @@
 """
 
 import logging
+import sys
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from config import MESSAGES
-from session_manager import SessionManager
+
+# إضافة المجلد الحالي للمسار
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from config import MESSAGES
+    from session_manager import SessionManager
+except ImportError:
+    import config
+    import session_manager
+    MESSAGES = config.MESSAGES
+    SessionManager = session_manager.SessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -79,8 +91,7 @@ class BasicHandlers:
         
         if update.callback_query:
             await update.callback_query.edit_message_text(
-                MESSAGES["about"], parse_mode='HTML', reply_markup=reply_markup
-            )
+                MESSAGES["about"], parse_mode='HTML', reply_markup=reply_markup            )
         else:
             await update.message.reply_html(MESSAGES["about"], reply_markup=reply_markup)
     
@@ -92,8 +103,13 @@ class BasicHandlers:
         # التحقق من وضع توليد الصور
         if SessionManager.is_in_mode(user_id, "image_generation"):
             if SessionManager.get_session_value(user_id, "step") == "waiting_prompt":
-                # استيراد معالج توليد الصور
-                from image_handlers import ImageHandlers
+                # استيراد معالج توليد الصور بطريقة متأخرة لتجنب الاستيراد الدائري
+                try:
+                    from image_handlers import ImageHandlers
+                except ImportError:
+                    import image_handlers
+                    ImageHandlers = image_handlers.ImageHandlers
+                
                 prompt = update.message.text
                 await ImageHandlers.handle_image_generation_text(update, context, prompt)
                 return

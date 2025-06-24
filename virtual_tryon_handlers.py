@@ -5,11 +5,27 @@
 """
 
 import logging
+import sys
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from config import AI_MODELS, GARMENT_TYPES
-from session_manager import SessionManager
-from ai_services import AIService, VirtualTryOnService
+
+# إضافة المجلد الحالي للمسار
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from config import AI_MODELS, GARMENT_TYPES
+    from session_manager import SessionManager
+    from ai_services import AIService, VirtualTryOnService
+except ImportError:
+    import config
+    import session_manager
+    import ai_services
+    AI_MODELS = config.AI_MODELS
+    GARMENT_TYPES = config.GARMENT_TYPES
+    SessionManager = session_manager.SessionManager
+    AIService = ai_services.AIService
+    VirtualTryOnService = ai_services.VirtualTryOnService
 
 logger = logging.getLogger(__name__)
 

@@ -10,11 +10,21 @@ import tempfile
 import asyncio
 import aiohttp
 import re
+import sys
 from io import BytesIO
 from PIL import Image
 from gradio_client import Client
 import google.generativeai as genai
-from config import GEMINI_API_KEY, AI_MODELS
+
+# إضافة المجلد الحالي للمسار
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from config import GEMINI_API_KEY, AI_MODELS
+except ImportError:
+    import config
+    GEMINI_API_KEY = config.GEMINI_API_KEY
+    AI_MODELS = config.AI_MODELS
 
 logger = logging.getLogger(__name__)
 
