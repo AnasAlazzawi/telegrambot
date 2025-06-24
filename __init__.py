@@ -1,1 +1,0 @@
-# Graffiti AI Bot Package
