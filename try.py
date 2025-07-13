@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Graffiti AI - Smart Telegram Bot for Virtual Try-On
-بوت تليجرام ذكي لتجربة الملابس الافتراضية باستخدام الذكاء الاصطناعي
-"""
 
-import os
 import logging
 import asyncio
 import tempfile
@@ -53,60 +47,7 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 # الحصول على مفتاح Gemini AI
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
-if not TELEGRAM_TOKEN:
-    raise ValueError("❌ TELEGRAM_TOKEN مطلوب في ملف .env")
-
-if not GEMINI_API_KEY:
-    raise ValueError("❌ GEMINI_API_KEY مطلوب في ملف .env")
-
-# إعداد Gemini AI
-genai.configure(api_key=GEMINI_API_KEY)
-
-# إنشاء نموذج Gemini 2.0 Flash
-try:
-    gemini_model = genai.GenerativeModel('gemini-2.0-flash-exp')
-    logger.info("✅ تم الاتصال بنموذج Gemini 2.0 Flash بنجاح")
-except Exception as e:
-    logger.error(f"❌ خطأ في إعداد Gemini: {e}")
-    # Fallback إلى نموذج آخر
-    try:
-        gemini_model = genai.GenerativeModel('gemini-pro')
-        logger.info("✅ تم الاتصال بنموذج Gemini Pro البديل")
-    except Exception as e2:
-        logger.error(f"❌ فشل في إعداد جميع نماذج Gemini: {e2}")
-        gemini_model = None
-
-# نماذج الذكاء الاصطناعي المتاحة
-AI_MODELS = {
-    "g1_fast": {
-        "name": "Graffiti G1 Fast",
-        "client_id": "krsatyam7/Virtual_Clothing_Try-On-new",
-        "api_endpoint": "/swap_clothing",
-        "description": "نموذج سريع ومحسن للاستخدام اليومي"
-    },
-    "g1_pro": {
-        "name": "Graffiti G1 Pro", 
-        "client_id": "PawanratRung/virtual-try-on",
-        "api_endpoint": "/virtual_tryon",
-        "description": "نموذج متقدم مع خيارات متنوعة للملابس"
-    },
-    "g1_image": {
-        "name": "Graffiti G1-Image Generator",
-        "client_id": "black-forest-labs/FLUX.1-dev",
-        "api_endpoint": "/infer",
-        "description": "مولد صور ذكي بالذكاء الاصطناعي"
-    }
-}
-
-# أنواع الملابس للنموذج المتقدم
-GARMENT_TYPES = {
-    "upper": {"id": "upper_body", "name": "ملابس علوية"},
-    "lower": {"id": "lower_body", "name": "ملابس سفلية"}, 
-    "dress": {"id": "dresses", "name": "فساتين"}
-}
-
-# حالات المستخدمين
-user_sessions = {}
+if
 
 class GraffitiAI:
     """فئة رئيسية لبوت Graffiti AI"""
