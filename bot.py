@@ -1,9 +1,4 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Graffiti AI - Smart Telegram Bot for Virtual Try-On
-بوت تليجرام ذكي لتجربة الملابس الافتراضية باستخدام الذكاء الاصطناعي
-"""
+
 
 import os
 import logging
@@ -13,11 +8,7 @@ import aiohttp
 import re
 from io import BytesIO
 from PIL import Image
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
-from dotenv import load_dotenv
-from gradio_client import Client
-import google.generativeai as genai
+
 
 # تحميل متغيرات البيئة
 load_dotenv()
